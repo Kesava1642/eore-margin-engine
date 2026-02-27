@@ -13,6 +13,7 @@ const ORDERS_QUERY = `#graphql
           lineItems(first: 250) {
             edges {
               node {
+                id
                 sku
                 title
                 quantity
@@ -22,6 +23,10 @@ const ORDERS_QUERY = `#graphql
                   }
                 }
                 variant {
+                  id
+                  sku
+                }
+                product {
                   id
                 }
               }
@@ -40,6 +45,49 @@ function formatDateDaysAgo(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().slice(0, 10);
+}
+
+function last6(str) {
+  if (str == null || typeof str !== "string") return "";
+  return str.length <= 6 ? str : str.slice(-6);
+}
+
+function normalizedTitle(title) {
+  if (title == null || typeof title !== "string") return "";
+  return title.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function getStableKeyAndSku(line, orderId, index) {
+  const title = line.title || "Untitled";
+  const normTitle = normalizedTitle(title);
+
+  const variantSku = line.variant?.sku?.trim();
+  if (variantSku) {
+    return { key: `sku:${variantSku}`, displaySku: variantSku };
+  }
+
+  const variantId = line.variant?.id;
+  if (variantId) {
+    return { key: `variant:${variantId}`, displaySku: `VAR-${last6(variantId)}` };
+  }
+
+  const productId = line.product?.id;
+  if (productId) {
+    return {
+      key: `product:${productId}:${normTitle}`,
+      displaySku: `PROD-${last6(productId)}`,
+    };
+  }
+
+  const lineItemId = line.id;
+  if (lineItemId) {
+    return { key: `line:${lineItemId}`, displaySku: `LINE-${last6(lineItemId)}` };
+  }
+
+  return {
+    key: `fallback:${orderId}:${normTitle}:${index}`,
+    displaySku: `UNK-${index + 1}`,
+  };
 }
 
 export const loader = async ({ request }) => {
@@ -74,27 +122,28 @@ export const loader = async ({ request }) => {
     for (const { node: order } of orders) {
       if (!firstOrderId) firstOrderId = order.id;
       const lineEdges = order.lineItems?.edges ?? [];
+      let lineIndex = 0;
       for (const { node: line } of lineEdges) {
         lineItemsParsed += 1;
-        const skuRaw = line.sku?.trim() || line.variant?.id || `line-${lineItemsParsed}`;
-        const skuKey = String(skuRaw);
+        const { key, displaySku } = getStableKeyAndSku(line, order.id, lineIndex);
+        lineIndex += 1;
         const title = line.title || "Untitled";
         const qty = Math.max(0, Number(line.quantity) || 0);
         const amountStr = line.originalTotalSet?.shopMoney?.amount ?? "0";
         const revenue = Number(amountStr) || 0;
 
         if (!firstLineItem) {
-          firstLineItem = { sku: skuKey, title, qty, revenue };
+          firstLineItem = { sku: displaySku, title, qty, revenue };
         }
 
-        const existing = agg.get(skuKey);
+        const existing = agg.get(key);
         if (existing) {
           existing.quantity += qty;
           existing.revenue += revenue;
           existing.orderIds.add(order.id);
         } else {
-          agg.set(skuKey, {
-            sku: skuKey,
+          agg.set(key, {
+            sku: displaySku,
             title,
             quantity: qty,
             revenue,
