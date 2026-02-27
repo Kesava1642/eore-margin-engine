@@ -170,13 +170,47 @@ async function fetchOrdersWithCustomToken(shopDomain, accessToken, query) {
       variables: { query },
     }),
   });
-  return res.json();
+  const status = res.status;
+  let data = null;
+  let errors = null;
+  let graphqlError = null;
+  try {
+    const json = await res.json();
+    data = json.data ?? null;
+    errors = json.errors ?? null;
+    if (errors?.length) {
+      const first = errors[0];
+      graphqlError = typeof first?.message === "string" ? first.message : "Unknown GraphQL error";
+    }
+  } catch {
+    graphqlError = "Failed to parse response JSON";
+  }
+  return { data, errors, status, graphqlError };
+}
+
+function makeDebug(opts) {
+  return {
+    authMode: opts.authMode ?? "session",
+    hasShopDomain: opts.hasShopDomain ?? false,
+    hasAdminToken: opts.hasAdminToken ?? false,
+    tokenAttempted: opts.tokenAttempted ?? false,
+    tokenHttpStatus: opts.tokenHttpStatus ?? null,
+    tokenGraphqlError: opts.tokenGraphqlError ?? null,
+  };
 }
 
 export const loader = async ({ request }) => {
   const query = `created_at:>=${formatDateDaysAgo(30)}`;
-  const tokenFallbackHint =
-    "Orders access blocked. Add SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_ACCESS_TOKEN to .env (see docs/DEV_CUSTOM_APP_TOKEN.md).";
+  const hasShopDomain = Boolean(
+    process.env.SHOPIFY_SHOP_DOMAIN && String(process.env.SHOPIFY_SHOP_DOMAIN).trim(),
+  );
+  const hasAdminToken = Boolean(
+    process.env.SHOPIFY_ADMIN_ACCESS_TOKEN && String(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN).trim(),
+  );
+
+  const missingEnvHint = `Missing env: SHOPIFY_SHOP_DOMAIN=${hasShopDomain ? "present" : "missing"}, SHOPIFY_ADMIN_ACCESS_TOKEN=${hasAdminToken ? "present" : "missing"}. Add them to .env (see docs/DEV_CUSTOM_APP_TOKEN.md) and restart dev.`;
+  const tokenFailedHint =
+    "Token fallback failed. Check token, scopes, and shop domain (see docs/DEV_CUSTOM_APP_TOKEN.md).";
 
   let sessionShop = null;
 
@@ -192,22 +226,32 @@ export const loader = async ({ request }) => {
         const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN?.trim();
         const accessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
         if (shopDomain && accessToken) {
-          const tokenJson = await fetchOrdersWithCustomToken(shopDomain, accessToken, query);
-          if (tokenJson.errors?.length) {
+          const result = await fetchOrdersWithCustomToken(shopDomain, accessToken, query);
+          const tokenAttempted = true;
+          const tokenHttpStatus = result.status;
+          const tokenGraphqlError = result.graphqlError;
+          if (result.errors?.length) {
             return {
               ok: false,
               shop: shopDomain,
-              authMode: undefined,
               error: {
-                message: tokenJson.errors.map((e) => e.message).join(", "),
-                hint: tokenFallbackHint,
+                message: result.errors.map((e) => e.message).join(", "),
+                hint: tokenFailedHint,
               },
               counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
               preview: {},
               rows: [],
+              debug: makeDebug({
+                authMode: "blocked",
+                hasShopDomain,
+                hasAdminToken,
+                tokenAttempted,
+                tokenHttpStatus,
+                tokenGraphqlError,
+              }),
             };
           }
-          const ordersEdges = tokenJson.data?.orders?.edges ?? [];
+          const ordersEdges = result.data?.orders?.edges ?? [];
           const agg = aggregateOrdersToRows(ordersEdges);
           return {
             ok: true,
@@ -223,15 +267,31 @@ export const loader = async ({ request }) => {
               firstLineItem: agg.firstLineItem,
             },
             rows: agg.rows,
+            debug: makeDebug({
+              authMode: "token-fallback",
+              hasShopDomain,
+              hasAdminToken,
+              tokenAttempted,
+              tokenHttpStatus,
+              tokenGraphqlError: null,
+            }),
           };
         }
         return {
           ok: false,
           shop: sessionShop,
-          error: { message, hint: tokenFallbackHint },
+          error: { message, hint: missingEnvHint },
           counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
           preview: {},
           rows: [],
+          debug: makeDebug({
+            authMode: "blocked",
+            hasShopDomain,
+            hasAdminToken,
+            tokenAttempted: false,
+            tokenHttpStatus: null,
+            tokenGraphqlError: null,
+          }),
         };
       }
       return {
@@ -244,6 +304,7 @@ export const loader = async ({ request }) => {
         counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
         preview: {},
         rows: [],
+        debug: makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }),
       };
     }
 
@@ -263,6 +324,7 @@ export const loader = async ({ request }) => {
         firstLineItem: agg.firstLineItem,
       },
       rows: agg.rows,
+      debug: makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }),
     };
   } catch (e) {
     const message = e?.message ?? "Unknown error";
@@ -270,10 +332,16 @@ export const loader = async ({ request }) => {
       const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN?.trim();
       const accessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
       if (shopDomain && accessToken) {
+        let tokenAttempted = false;
+        let tokenHttpStatus = null;
+        let tokenGraphqlError = null;
         try {
-          const tokenJson = await fetchOrdersWithCustomToken(shopDomain, accessToken, query);
-          if (!tokenJson.errors?.length) {
-            const ordersEdges = tokenJson.data?.orders?.edges ?? [];
+          const result = await fetchOrdersWithCustomToken(shopDomain, accessToken, query);
+          tokenAttempted = true;
+          tokenHttpStatus = result.status;
+          tokenGraphqlError = result.graphqlError;
+          if (!result.errors?.length) {
+            const ordersEdges = result.data?.orders?.edges ?? [];
             const agg = aggregateOrdersToRows(ordersEdges);
             return {
               ok: true,
@@ -289,21 +357,52 @@ export const loader = async ({ request }) => {
                 firstLineItem: agg.firstLineItem,
               },
               rows: agg.rows,
+              debug: makeDebug({
+                authMode: "token-fallback",
+                hasShopDomain,
+                hasAdminToken,
+                tokenAttempted,
+                tokenHttpStatus,
+                tokenGraphqlError: null,
+              }),
             };
-          } catch {
-            // fall through to final error
           }
         } catch {
-          // fall through
+          tokenAttempted = true;
+          // tokenHttpStatus / tokenGraphqlError may be unset if fetch threw before response
         }
+        return {
+          ok: false,
+          shop: sessionShop ?? null,
+          error: { message, hint: tokenFailedHint },
+          counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
+          preview: {},
+          rows: [],
+          debug: makeDebug({
+            authMode: "blocked",
+            hasShopDomain,
+            hasAdminToken,
+            tokenAttempted,
+            tokenHttpStatus,
+            tokenGraphqlError,
+          }),
+        };
       }
       return {
         ok: false,
         shop: sessionShop ?? null,
-        error: { message, hint: tokenFallbackHint },
+        error: { message, hint: missingEnvHint },
         counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
         preview: {},
         rows: [],
+        debug: makeDebug({
+          authMode: "blocked",
+          hasShopDomain,
+          hasAdminToken,
+          tokenAttempted: false,
+          tokenHttpStatus: null,
+          tokenGraphqlError: null,
+        }),
       };
     }
     return {
@@ -316,6 +415,7 @@ export const loader = async ({ request }) => {
       counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
       preview: {},
       rows: [],
+      debug: makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }),
     };
   }
 };
@@ -380,7 +480,7 @@ export default function Index() {
   ];
 
   const isDev = typeof import.meta !== "undefined" && import.meta.env?.DEV === true;
-  const { ok, shop, error, authMode, counts = {}, preview = {}, rows: rawRows = [] } = loaderData;
+  const { ok, shop, error, authMode, counts = {}, preview = {}, rows: rawRows = [], debug = {} } = loaderData;
   const hasRows = ok && rawRows.length > 0;
   const zeroOrders = ok && (counts.ordersFetched ?? 0) === 0;
 
@@ -392,11 +492,6 @@ export default function Index() {
             <s-stack direction="block" gap="tight">
               <s-text>
                 <strong>Connection:</strong> {shop ? `${shop} · Admin API ${ok ? "ok" : "error"}` : "—"}
-                {ok && authMode && (
-                  <span style={{ marginLeft: 8 }}>
-                    · Auth mode: {authMode === "token-fallback" ? "token-fallback" : "session"}
-                  </span>
-                )}
                 {error && (
                   <span style={{ color: "var(--p-color-text-critical, #d72c0d)" }}>
                     {" "}
@@ -404,6 +499,19 @@ export default function Index() {
                   </span>
                 )}
               </s-text>
+              <s-text>
+                <strong>Auth mode:</strong> {debug.authMode ?? authMode ?? "—"}
+              </s-text>
+              <s-text>
+                <strong>Env:</strong> SHOPIFY_SHOP_DOMAIN={debug.hasShopDomain ? "present" : "missing"},
+                SHOPIFY_ADMIN_ACCESS_TOKEN={debug.hasAdminToken ? "present" : "missing"}
+              </s-text>
+              {debug.tokenAttempted && (
+                <s-text>
+                  <strong>Token fallback:</strong> attempted, HTTP {debug.tokenHttpStatus ?? "—"}, GraphQL error:{" "}
+                  {debug.tokenGraphqlError ?? "none"}
+                </s-text>
+              )}
               <s-text>
                 <strong>Counts:</strong> ordersFetched={counts.ordersFetched ?? 0}, lineItemsParsed=
                 {counts.lineItemsParsed ?? 0}, skuRows={counts.skuRows ?? 0}
