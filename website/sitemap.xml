@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://example.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://example.com/pages/services.html</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://example.com/pages/how-it-works.html</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://example.com/pages/use-cases.html</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://example.com/pages/about.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://example.com/pages/contact.html</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://example.com/pages/admin.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://example.com/pages/decision-log.html</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+</urlset>

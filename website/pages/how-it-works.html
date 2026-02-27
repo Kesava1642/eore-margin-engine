@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How It Works | EORE Operational Decision Systems</title>
+  <meta name="description" content="EORE workflow: Intake → classification → scoring → recommendation → decision log → review loop." />
+  <meta property="og:title" content="How It Works | EORE" />
+  <meta property="og:description" content="Step-by-step workflow for system-guided operational decisions." />
+  <meta property="og:type" content="website" />
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main id="main-content" tabindex="-1">
+    <div class="container">
+      <h1>How It Works</h1>
+      <p class="lead">Step-by-step workflow: from intake to recommendation to decision log and review.</p>
+
+      <section class="section" id="workflow" aria-labelledby="workflow-heading">
+        <h2 class="section-title" id="workflow-heading">Workflow</h2>
+        <div class="workflow-diagram" role="img" aria-label="Workflow: Intake, Classification, Scoring, Recommendation, Decision log, Review">
+          <span class="workflow-step">Intake</span>
+          <span class="workflow-arrow" aria-hidden="true">→</span>
+          <span class="workflow-step">Classification</span>
+          <span class="workflow-arrow" aria-hidden="true">→</span>
+          <span class="workflow-step">Scoring / Constraints</span>
+          <span class="workflow-arrow" aria-hidden="true">→</span>
+          <span class="workflow-step">Recommendation</span>
+          <span class="workflow-arrow" aria-hidden="true">→</span>
+          <span class="workflow-step">Decision log</span>
+          <span class="workflow-arrow" aria-hidden="true">→</span>
+          <span class="workflow-step">Review loop</span>
+        </div>
+        <ol>
+          <li><strong>Intake</strong> — Situation or incident is captured (e.g. type, severity, time, site).</li>
+          <li><strong>Classification</strong> — The system assigns category and priority from your definitions.</li>
+          <li><strong>Scoring / Constraints</strong> — Rules and thresholds are applied (e.g. escalation limits, cost–risk).</li>
+          <li><strong>Recommendation</strong> — Next action, playbook steps, or escalation path is generated.</li>
+          <li><strong>Decision log</strong> — Recommendation and (if taken) action are recorded with actor and timestamp.</li>
+          <li><strong>Review loop</strong> — Outcomes are tracked (pending / implemented / reviewed) and fed back for improvement.</li>
+        </ol>
+      </section>
+
+      <section class="section" aria-labelledby="innovative-heading">
+        <h2 class="section-title" id="innovative-heading">What’s innovative</h2>
+        <div class="innovation-block">
+          <p><strong>First 90-minute decision compression framework</strong> — We structure the critical window after an incident so that triage, communication, escalation, and first recovery steps are consistent and time-bound. Combined with <strong>structured escalation logic</strong> (thresholds, roles, approval steps), the system reduces the gap between “what should happen” and “what actually happens” across shifts. No buzzwords: the mechanism is configurable playbooks + decision logging + outcome tracking.</p>
+        </div>
+      </section>
+
+      <p><a href="contact.html" class="btn btn-primary">Request pilot</a></p>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="../assets/header.js"></script>
+  <script src="../assets/footer.js"></script>
+  <script src="../assets/nav.js"></script>
+  <script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contact | EORE Operational Decision Systems</title>
+  <meta name="description" content="Contact EORE for a pilot or more information. Simple form and business identity." />
+  <meta property="og:title" content="Contact | EORE" />
+  <meta property="og:description" content="Get in touch for a pilot or more information." />
+  <meta property="og:type" content="website" />
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main id="main-content" tabindex="-1">
+    <div class="container">
+      <h1>Contact</h1>
+      <p class="lead">Request a pilot or ask a question. We will respond via the email address you provide.</p>
+
+      <section class="section" aria-labelledby="form-heading">
+        <h2 class="section-title" id="form-heading">Send a message</h2>
+        <form id="contact-form" method="post" action="#" aria-label="Contact form">
+          <div class="form-group">
+            <label for="name">Name <span class="sr-only">(required)</span></label>
+            <input type="text" id="name" name="name" required aria-required="true" autocomplete="name" />
+          </div>
+          <div class="form-group">
+            <label for="email">Email <span class="sr-only">(required)</span></label>
+            <input type="email" id="email" name="email" required aria-required="true" autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label for="role">Role / Company</label>
+            <input type="text" id="role" name="role" autocomplete="organization" />
+          </div>
+          <div class="form-group">
+            <label for="message">Message</label>
+            <textarea id="message" name="message" rows="5" aria-describedby="form-message"></textarea>
+          </div>
+          <p id="form-message" class="text-muted" aria-live="polite"></p>
+          <button type="submit" class="btn btn-primary">Send message</button>
+        </form>
+      </section>
+
+      <section class="section" aria-labelledby="identity-heading">
+        <h2 class="section-title" id="identity-heading">Business identity</h2>
+        <p><strong>EORE</strong> — Operational Decision Systems</p>
+        <p>Email: <a href="mailto:contact@eore.example">contact@eore.example</a> (placeholder)</p>
+        <p>Pilot and subscription enquiries: use the form above or the email link.</p>
+      </section>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="../assets/header.js"></script>
+  <script src="../assets/footer.js"></script>
+  <script src="../assets/nav.js"></script>
+  <script src="../assets/app.js"></script>
+</body>
+</html>

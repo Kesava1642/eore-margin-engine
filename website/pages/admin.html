@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin / Owner Dashboard | EORE Operational Decision Systems</title>
+  <meta name="description" content="EORE admin dashboard: incidents, response time, decisions logged, repeat incident rate. Roles, escalation, approval thresholds." />
+  <meta property="og:title" content="Admin Dashboard | EORE" />
+  <meta property="og:type" content="website" />
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main id="main-content" tabindex="-1">
+    <div class="container">
+      <h1>Admin / Owner Dashboard</h1>
+      <p class="lead">Metrics and controls for site operators and admins. Decision tracking shows how outcomes are followed up.</p>
+
+      <section class="section" aria-labelledby="metrics-heading">
+        <h2 class="section-title" id="metrics-heading">Metrics (this month)</h2>
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <p class="value">12</p>
+            <p class="label">Incidents this month</p>
+          </div>
+          <div class="metric-card">
+            <p class="value">18 min</p>
+            <p class="label">Avg response time</p>
+          </div>
+          <div class="metric-card">
+            <p class="value">34</p>
+            <p class="label">Decisions logged</p>
+          </div>
+          <div class="metric-card">
+            <p class="value">8%</p>
+            <p class="label">Repeat incident rate</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="controls-heading">
+        <h2 class="section-title" id="controls-heading">Controls</h2>
+        <div class="card-grid">
+          <div class="card">
+            <h3>Roles &amp; permissions</h3>
+            <p>Only admins can change settings, run cost sync, and apply write-backs. Non-admin users can view dashboards and insights.</p>
+          </div>
+          <div class="card">
+            <h3>Escalation contacts</h3>
+            <p>Configure who is notified at each escalation level and for which incident types. Editable in Settings.</p>
+          </div>
+          <div class="card">
+            <h3>Approval thresholds</h3>
+            <p>Set thresholds for when an action requires approval (e.g. cost, risk, or policy). Thresholds are configurable per site.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="tracking-heading">
+        <h2 class="section-title" id="tracking-heading">Decision tracking</h2>
+        <p>Each decision has a <strong>planned action</strong>, <strong>applied?</strong> flag, <strong>expected impact</strong>, and <strong>review date</strong>. Outcome status: Pending / Implemented / Reviewed. Admins can update status and add outcome notes so the system maintains an audit trail.</p>
+        <p><a href="decision-log.html" class="btn btn-secondary">Open Decision Log</a></p>
+      </section>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="../assets/header.js"></script>
+  <script src="../assets/footer.js"></script>
+  <script src="../assets/nav.js"></script>
+  <script src="../assets/app.js"></script>
+</body>
+</html>
