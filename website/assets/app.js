@@ -9,7 +9,7 @@
       var name = (form.querySelector('[name="name"]') || {}).value;
       var msg = document.getElementById("form-message");
       if (msg) {
-        msg.textContent = "Thank you. Your message has been received. We will respond via the email address you provided.";
+        msg.textContent = "Thank you. Your message has been received. We will respond via the email you provided. Pilot requests will be followed up by email.";
         msg.setAttribute("role", "status");
       }
       form.reset();

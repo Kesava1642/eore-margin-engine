@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Decision Log / History | EORE Operational Decision Systems</title>
-  <meta name="description" content="EORE decision log: filter by type, severity, date, owner. Full audit trail of recommendations and actions." />
-  <meta property="og:title" content="Decision Log | EORE" />
+  <title>Decision Log / History | EORE Shopify Margin Engine</title>
+  <meta name="description" content="EORE margin decision log: filter by issue type, severity, date. Reprice, pause ads, change discount, update COGS. Before/after margin, notes, follow-up." />
+  <meta property="og:title" content="Decision Log | EORE Margin Engine" />
   <meta property="og:type" content="website" />
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
@@ -15,18 +15,19 @@
   <main id="main-content" tabindex="-1">
     <div class="container">
       <h1>Decision Log / History</h1>
-      <p class="lead">Audit trail of recommendations and actions. Filter by type, severity, date, and owner.</p>
+      <p class="lead">Margin decision audit trail. Filter by issue type, severity, date range. Each row: SKU, issue, decision, expected impact. Click View for detail (before/after margin, notes, follow-up date).</p>
 
       <section class="section" aria-labelledby="filters-heading">
         <h2 class="section-title" id="filters-heading">Filters</h2>
         <form id="log-filters" class="form-group" aria-label="Filter decision log">
-          <label for="filter-type">Type</label>
-          <select id="filter-type" name="type" aria-label="Decision type">
+          <label for="filter-issue">Issue type</label>
+          <select id="filter-issue" name="issue_type" aria-label="Issue type">
             <option value="">All</option>
-            <option value="incident">Incident</option>
-            <option value="escalation">Escalation</option>
-            <option value="recovery">Recovery</option>
-            <option value="approval">Approval</option>
+            <option value="negative-margin">Negative margin</option>
+            <option value="low-margin">Low margin</option>
+            <option value="refund-heavy">Refund-heavy</option>
+            <option value="shipping-heavy">Shipping-heavy</option>
+            <option value="fee-heavy">Fee-heavy</option>
           </select>
           <label for="filter-severity">Severity</label>
           <select id="filter-severity" name="severity" aria-label="Severity">
@@ -35,10 +36,10 @@
             <option value="medium">Medium</option>
             <option value="low">Low</option>
           </select>
-          <label for="filter-date">Date from</label>
-          <input type="date" id="filter-date" name="date" aria-label="Date from" />
-          <label for="filter-owner">Owner</label>
-          <input type="text" id="filter-owner" name="owner" placeholder="Filter by owner" aria-label="Owner" />
+          <label for="filter-date-from">Date from</label>
+          <input type="date" id="filter-date-from" name="date_from" aria-label="Date from" />
+          <label for="filter-date-to">Date to</label>
+          <input type="date" id="filter-date-to" name="date_to" aria-label="Date to" />
           <button type="button" class="btn btn-secondary" id="apply-filters">Apply filters</button>
         </form>
       </section>
@@ -49,50 +50,55 @@
           <table role="grid" aria-labelledby="table-heading">
             <thead>
               <tr>
-                <th scope="col">Date / Time</th>
-                <th scope="col">Type</th>
+                <th scope="col">Date</th>
+                <th scope="col">SKU</th>
+                <th scope="col">Issue type</th>
                 <th scope="col">Severity</th>
-                <th scope="col">Summary</th>
                 <th scope="col">Owner</th>
-                <th scope="col">Status</th>
+                <th scope="col">Decision</th>
+                <th scope="col">Expected impact</th>
                 <th scope="col">Detail</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>2025-02-26 14:32</td>
-                <td>Incident</td>
+                <td>2025-02-26</td>
+                <td>SKU-101</td>
+                <td>Negative margin</td>
                 <td><span class="badge badge-high">High</span></td>
-                <td>Conveyor stoppage — playbook recommended</td>
                 <td>J. Smith</td>
-                <td><span class="badge badge-implemented">Implemented</span></td>
+                <td>Repriced</td>
+                <td>+8% margin</td>
                 <td><button type="button" class="btn btn-secondary" aria-label="View detail for row 1">View</button></td>
               </tr>
               <tr>
-                <td>2025-02-26 11:15</td>
-                <td>Escalation</td>
+                <td>2025-02-25</td>
+                <td>SKU-202</td>
+                <td>Low margin</td>
                 <td><span class="badge badge-medium">Medium</span></td>
-                <td>Labour shortfall — reallocation applied</td>
                 <td>M. Jones</td>
-                <td><span class="badge badge-reviewed">Reviewed</span></td>
+                <td>Paused ads</td>
+                <td>Stop £120/mo loss</td>
                 <td><button type="button" class="btn btn-secondary" aria-label="View detail for row 2">View</button></td>
               </tr>
               <tr>
-                <td>2025-02-25 09:00</td>
-                <td>Recovery</td>
-                <td><span class="badge badge-low">Low</span></td>
-                <td>Inventory discrepancy — zone quarantined</td>
+                <td>2025-02-24</td>
+                <td>SKU-303</td>
+                <td>Refund-heavy</td>
+                <td><span class="badge badge-medium">Medium</span></td>
                 <td>K. Lee</td>
-                <td><span class="badge badge-pending">Pending</span></td>
+                <td>Updated COGS</td>
+                <td>Accurate margin</td>
                 <td><button type="button" class="btn btn-secondary" aria-label="View detail for row 3">View</button></td>
               </tr>
               <tr>
-                <td>2025-02-24 16:45</td>
-                <td>Incident</td>
-                <td><span class="badge badge-high">High</span></td>
-                <td>Safety near-miss — investigation started</td>
+                <td>2025-02-23</td>
+                <td>SKU-404</td>
+                <td>Fee-heavy</td>
+                <td><span class="badge badge-low">Low</span></td>
                 <td>J. Smith</td>
-                <td><span class="badge badge-implemented">Implemented</span></td>
+                <td>Changed discount</td>
+                <td>+3% margin</td>
                 <td><button type="button" class="btn btn-secondary" aria-label="View detail for row 4">View</button></td>
               </tr>
             </tbody>
@@ -103,7 +109,7 @@
       <section class="section" id="detail-view" aria-labelledby="detail-heading" hidden>
         <h2 class="section-title" id="detail-heading">Decision detail</h2>
         <div class="card" id="detail-content">
-          <p>Select a row “View” to see full recommendation, inputs, outputs, and outcome notes.</p>
+          <p>Select a row “View” to see before/after margin, notes, and follow-up date.</p>
         </div>
       </section>
     </div>
@@ -123,9 +129,20 @@
         btn.addEventListener("click", function () {
           var row = btn.closest("tr");
           var cells = row.querySelectorAll("td");
-          var summary = cells[3] ? cells[3].textContent : "";
-          var status = cells[5] ? cells[5].textContent : "";
-          detailContent.innerHTML = "<p><strong>Summary:</strong> " + summary + "</p><p><strong>Status:</strong> " + status + "</p><p>Full payload: recommendation, inputs, outputs, and outcome notes would load here in the live product.</p>";
+          var date = cells[0] ? cells[0].textContent : "";
+          var sku = cells[1] ? cells[1].textContent : "";
+          var issueType = cells[2] ? cells[2].textContent : "";
+          var decision = cells[5] ? cells[5].textContent : "";
+          var impact = cells[6] ? cells[6].textContent : "";
+          detailContent.innerHTML =
+            "<p><strong>Date:</strong> " + date + "</p>" +
+            "<p><strong>SKU:</strong> " + sku + "</p>" +
+            "<p><strong>Issue type:</strong> " + issueType + "</p>" +
+            "<p><strong>Decision:</strong> " + decision + "</p>" +
+            "<p><strong>Expected impact:</strong> " + impact + "</p>" +
+            "<p><strong>Before/after margin (sample):</strong> Before −2%; after +6% (illustrative).</p>" +
+            "<p><strong>Notes:</strong> Sample note—repriced to restore margin after fee allocation.</p>" +
+            "<p><strong>Follow-up date:</strong> 2025-03-15</p>";
           detailSection.hidden = false;
           detailSection.scrollIntoView({ behavior: "smooth" });
         });

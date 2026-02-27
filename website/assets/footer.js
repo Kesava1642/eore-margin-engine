@@ -8,8 +8,8 @@
     '  <div class="container">' +
     '    <div class="footer-grid">' +
     "      <div>" +
-    '        <p><strong>EORE</strong> — Operational Decision Systems</p>' +
-    '        <p class="text-muted">System-guided decisions at scale.</p>' +
+    '        <p><strong>EORE</strong> — Shopify Margin Engine</p>' +
+    '        <p class="text-muted">Profit clarity engine. SKU-level net margin.</p>' +
     "      </div>" +
     "      <div>" +
     '        <p><a href="' + base + 'pages/contact.html">Contact</a></p>' +

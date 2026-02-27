@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin / Owner Dashboard | EORE Operational Decision Systems</title>
-  <meta name="description" content="EORE admin dashboard: incidents, response time, decisions logged, repeat incident rate. Roles, escalation, approval thresholds." />
-  <meta property="og:title" content="Admin Dashboard | EORE" />
+  <title>Admin / Owner Dashboard | EORE Shopify Margin Engine</title>
+  <meta name="description" content="EORE Margin Engine admin: orders analysed, SKUs tracked, avg margin %, loss SKUs. Cost inputs, fee model, margin thresholds, decision tracking." />
+  <meta property="og:title" content="Admin Dashboard | EORE Margin Engine" />
   <meta property="og:type" content="website" />
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
@@ -15,51 +15,114 @@
   <main id="main-content" tabindex="-1">
     <div class="container">
       <h1>Admin / Owner Dashboard</h1>
-      <p class="lead">Metrics and controls for site operators and admins. Decision tracking shows how outcomes are followed up.</p>
+      <p class="lead">Margin Engine controls and metrics. Sample numbers below are for demo only. Cost inputs, fee model, margin thresholds, and decision tracking with review cadence.</p>
 
       <section class="section" aria-labelledby="metrics-heading">
-        <h2 class="section-title" id="metrics-heading">Metrics (this month)</h2>
+        <h2 class="section-title" id="metrics-heading">Metrics <span class="text-muted">(sample / last 30 days)</span></h2>
         <div class="metrics-grid">
           <div class="metric-card">
-            <p class="value">12</p>
-            <p class="label">Incidents this month</p>
+            <p class="value">1,240</p>
+            <p class="label">Orders analysed</p>
           </div>
           <div class="metric-card">
-            <p class="value">18 min</p>
-            <p class="label">Avg response time</p>
+            <p class="value">89</p>
+            <p class="label">SKUs tracked</p>
           </div>
           <div class="metric-card">
-            <p class="value">34</p>
-            <p class="label">Decisions logged</p>
+            <p class="value">22%</p>
+            <p class="label">Avg margin %</p>
           </div>
           <div class="metric-card">
-            <p class="value">8%</p>
-            <p class="label">Repeat incident rate</p>
+            <p class="value">7</p>
+            <p class="label">Loss SKUs count</p>
           </div>
         </div>
       </section>
 
-      <section class="section" aria-labelledby="controls-heading">
-        <h2 class="section-title" id="controls-heading">Controls</h2>
-        <div class="card-grid">
-          <div class="card">
-            <h3>Roles &amp; permissions</h3>
-            <p>Only admins can change settings, run cost sync, and apply write-backs. Non-admin users can view dashboards and insights.</p>
-          </div>
-          <div class="card">
-            <h3>Escalation contacts</h3>
-            <p>Configure who is notified at each escalation level and for which incident types. Editable in Settings.</p>
-          </div>
-          <div class="card">
-            <h3>Approval thresholds</h3>
-            <p>Set thresholds for when an action requires approval (e.g. cost, risk, or policy). Thresholds are configurable per site.</p>
-          </div>
+      <section class="section" aria-labelledby="cost-heading">
+        <h2 class="section-title" id="cost-heading">Cost inputs management</h2>
+        <p>COGS per SKU, packaging cost default, shipping cost rules. Only admins can change these.</p>
+        <div class="card">
+          <h3>Current settings (demo)</h3>
+          <ul>
+            <li><strong>COGS per SKU:</strong> From metafield / CSV import; override per variant in app.</li>
+            <li><strong>Packaging cost default:</strong> £0.45 per order (configurable).</li>
+            <li><strong>Shipping cost rules:</strong> Flat by zone or % of order; configurable in Settings.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="fee-heading">
+        <h2 class="section-title" id="fee-heading">Fee model toggles</h2>
+        <p>Shopify fee %, payment fee %, FX fee %. Applied at order level then allocated by revenue share.</p>
+        <div class="card">
+          <ul>
+            <li><strong>Shopify fee %:</strong> 2.0% (demo)</li>
+            <li><strong>Payment fee %:</strong> 2.9% + £0.30 (demo)</li>
+            <li><strong>FX fee %:</strong> 2.0% when multi-currency (demo)</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="thresholds-heading">
+        <h2 class="section-title" id="thresholds-heading">Margin thresholds</h2>
+        <p>Warn below X%; critical below 0%. Drives risk flags and decision prompts.</p>
+        <div class="card">
+          <ul>
+            <li><strong>Warn below:</strong> 10% margin (configurable)</li>
+            <li><strong>Critical below:</strong> 0% (negative margin)</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="allocation-heading">
+        <h2 class="section-title" id="allocation-heading">Allocation options (Phase 2)</h2>
+        <p>Ads allocation method: revenue share, equal split, or manual. Demo dropdown below—live product would persist selection.</p>
+        <div class="form-group">
+          <label for="ads-method">Ads allocation method</label>
+          <select id="ads-method" name="ads_method" aria-label="Ads allocation method">
+            <option value="revenue">Revenue share</option>
+            <option value="equal">Equal split</option>
+            <option value="manual">Manual</option>
+          </select>
         </div>
       </section>
 
       <section class="section" aria-labelledby="tracking-heading">
         <h2 class="section-title" id="tracking-heading">Decision tracking</h2>
-        <p>Each decision has a <strong>planned action</strong>, <strong>applied?</strong> flag, <strong>expected impact</strong>, and <strong>review date</strong>. Outcome status: Pending / Implemented / Reviewed. Admins can update status and add outcome notes so the system maintains an audit trail.</p>
+        <p>Selected SKU, proposed action (reprice / pause ads / change shipping), status: planned → applied → reviewed. Review date and outcome notes. Proof of system-guided operation.</p>
+        <div class="table-wrapper">
+          <table role="grid" aria-labelledby="tracking-heading">
+            <thead>
+              <tr>
+                <th scope="col">SKU</th>
+                <th scope="col">Proposed action</th>
+                <th scope="col">Status</th>
+                <th scope="col">Review date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>SKU-101</td>
+                <td>Reprice</td>
+                <td><span class="badge badge-applied">Applied</span></td>
+                <td>2025-03-01</td>
+              </tr>
+              <tr>
+                <td>SKU-202</td>
+                <td>Pause ads</td>
+                <td><span class="badge badge-pending">Planned</span></td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>SKU-303</td>
+                <td>Update COGS</td>
+                <td><span class="badge badge-reviewed">Reviewed</span></td>
+                <td>2025-02-20</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p><a href="decision-log.html" class="btn btn-secondary">Open Decision Log</a></p>
       </section>
     </div>

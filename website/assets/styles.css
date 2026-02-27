@@ -376,7 +376,8 @@ tr:hover td {
 }
 
 .badge-pending { background: #fff3cd; color: #856404; }
-.badge-implemented { background: #d4edda; color: var(--color-success); }
+.badge-implemented,
+.badge-applied { background: #d4edda; color: var(--color-success); }
 .badge-reviewed { background: var(--color-border); color: var(--color-charcoal); }
 .badge-high { background: #f8d7da; color: var(--color-danger); }
 .badge-medium { background: #fff3cd; color: #856404; }
@@ -512,3 +513,5 @@ tr:hover td {
 
 .text-muted { color: var(--color-text-muted); }
 .text-center { text-align: center; }
+.margin-positive { color: var(--color-success); }
+.margin-negative { color: var(--color-danger); }

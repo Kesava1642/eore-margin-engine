@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Contact | EORE Operational Decision Systems</title>
-  <meta name="description" content="Contact EORE for a pilot or more information. Simple form and business identity." />
-  <meta property="og:title" content="Contact | EORE" />
-  <meta property="og:description" content="Get in touch for a pilot or more information." />
+  <title>Contact | EORE Shopify Margin Engine</title>
+  <meta name="description" content="Request private beta or pilot for EORE Margin Engine. Tell us your store category, order volume, ad platform, and main pain." />
+  <meta property="og:title" content="Contact | EORE Margin Engine" />
+  <meta property="og:description" content="Request private beta / pilot. We respond via the email you provide." />
   <meta property="og:type" content="website" />
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
@@ -16,10 +16,11 @@
   <main id="main-content" tabindex="-1">
     <div class="container">
       <h1>Contact</h1>
-      <p class="lead">Request a pilot or ask a question. We will respond via the email address you provide.</p>
+      <p class="lead">Request private beta / pilot. We’ll respond via the email address you provide.</p>
 
       <section class="section" aria-labelledby="form-heading">
-        <h2 class="section-title" id="form-heading">Send a message</h2>
+        <h2 class="section-title" id="form-heading">Request pilot or ask a question</h2>
+        <p class="text-muted">Help us prioritise: store category, order volume band, ad platform, and main pain (pricing / ads / refunds / shipping).</p>
         <form id="contact-form" method="post" action="#" aria-label="Contact form">
           <div class="form-group">
             <label for="name">Name <span class="sr-only">(required)</span></label>
@@ -34,6 +35,34 @@
             <input type="text" id="role" name="role" autocomplete="organization" />
           </div>
           <div class="form-group">
+            <label for="store-category">Store category</label>
+            <input type="text" id="store-category" name="store_category" placeholder="e.g. fashion, electronics, supplements" aria-label="Store category" />
+          </div>
+          <div class="form-group">
+            <label for="order-volume">Monthly order volume band</label>
+            <select id="order-volume" name="order_volume" aria-label="Monthly order volume">
+              <option value="">Select</option>
+              <option value="under-100">Under 100</option>
+              <option value="100-500">100–500</option>
+              <option value="500-2000">500–2,000</option>
+              <option value="2000-plus">2,000+</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ad-platform">Ad platform used</label>
+            <input type="text" id="ad-platform" name="ad_platform" placeholder="e.g. Meta, Google, TikTok" aria-label="Ad platform" />
+          </div>
+          <div class="form-group">
+            <label for="main-pain">Main pain</label>
+            <select id="main-pain" name="main_pain" aria-label="Main pain">
+              <option value="">Select</option>
+              <option value="pricing">Pricing / margin clarity</option>
+              <option value="ads">Ad spend allocation</option>
+              <option value="refunds">Refunds eating margin</option>
+              <option value="shipping">Shipping / fees</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label for="message">Message</label>
             <textarea id="message" name="message" rows="5" aria-describedby="form-message"></textarea>
           </div>
@@ -44,9 +73,9 @@
 
       <section class="section" aria-labelledby="identity-heading">
         <h2 class="section-title" id="identity-heading">Business identity</h2>
-        <p><strong>EORE</strong> — Operational Decision Systems</p>
+        <p><strong>EORE</strong> — Shopify Margin Engine</p>
         <p>Email: <a href="mailto:contact@eore.example">contact@eore.example</a> (placeholder)</p>
-        <p>Pilot and subscription enquiries: use the form above or the email link.</p>
+        <p>Private beta and pilot enquiries: use the form above or the email link.</p>
       </section>
     </div>
   </main>

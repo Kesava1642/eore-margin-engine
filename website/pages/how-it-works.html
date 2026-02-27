@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>How It Works | EORE Operational Decision Systems</title>
-  <meta name="description" content="EORE workflow: Intake → classification → scoring → recommendation → decision log → review loop." />
-  <meta property="og:title" content="How It Works | EORE" />
-  <meta property="og:description" content="Step-by-step workflow for system-guided operational decisions." />
+  <title>How It Works | EORE Shopify Margin Engine</title>
+  <meta name="description" content="EORE Margin Engine workflow: Connect Shopify, pull orders, apply fee and cost models, compute net profit, flag risk, log decisions. No generic AI—modelling engine + decision workflow." />
+  <meta property="og:title" content="How It Works | EORE Margin Engine" />
+  <meta property="og:description" content="Step-by-step Shopify margin workflow. Cost allocation, fee modelling, decision log." />
   <meta property="og:type" content="website" />
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
@@ -16,37 +16,48 @@
   <main id="main-content" tabindex="-1">
     <div class="container">
       <h1>How It Works</h1>
-      <p class="lead">Step-by-step workflow: from intake to recommendation to decision log and review.</p>
+      <p class="lead">Shopify Margin Engine pipeline: from connect to decision log and outcome tracking. Standardised fee models and repeatable margin checks.</p>
 
       <section class="section" id="workflow" aria-labelledby="workflow-heading">
         <h2 class="section-title" id="workflow-heading">Workflow</h2>
-        <div class="workflow-diagram" role="img" aria-label="Workflow: Intake, Classification, Scoring, Recommendation, Decision log, Review">
-          <span class="workflow-step">Intake</span>
+        <div class="workflow-diagram" role="img" aria-label="Shopify Margin Engine workflow steps">
+          <span class="workflow-step">1. Connect</span>
           <span class="workflow-arrow" aria-hidden="true">→</span>
-          <span class="workflow-step">Classification</span>
+          <span class="workflow-step">2. Pull orders</span>
           <span class="workflow-arrow" aria-hidden="true">→</span>
-          <span class="workflow-step">Scoring / Constraints</span>
+          <span class="workflow-step">3. Map revenue</span>
           <span class="workflow-arrow" aria-hidden="true">→</span>
-          <span class="workflow-step">Recommendation</span>
+          <span class="workflow-step">4. Fee model</span>
           <span class="workflow-arrow" aria-hidden="true">→</span>
-          <span class="workflow-step">Decision log</span>
+          <span class="workflow-step">5. Cost inputs</span>
           <span class="workflow-arrow" aria-hidden="true">→</span>
-          <span class="workflow-step">Review loop</span>
+          <span class="workflow-step">6. Allocate</span>
+          <span class="workflow-arrow" aria-hidden="true">→</span>
+          <span class="workflow-step">7. Compute</span>
+          <span class="workflow-arrow" aria-hidden="true">→</span>
+          <span class="workflow-step">8. Flag risk</span>
+          <span class="workflow-arrow" aria-hidden="true">→</span>
+          <span class="workflow-step">9. Log &amp; track</span>
         </div>
         <ol>
-          <li><strong>Intake</strong> — Situation or incident is captured (e.g. type, severity, time, site).</li>
-          <li><strong>Classification</strong> — The system assigns category and priority from your definitions.</li>
-          <li><strong>Scoring / Constraints</strong> — Rules and thresholds are applied (e.g. escalation limits, cost–risk).</li>
-          <li><strong>Recommendation</strong> — Next action, playbook steps, or escalation path is generated.</li>
-          <li><strong>Decision log</strong> — Recommendation and (if taken) action are recorded with actor and timestamp.</li>
-          <li><strong>Review loop</strong> — Outcomes are tracked (pending / implemented / reviewed) and fed back for improvement.</li>
+          <li><strong>Authenticate Shopify store</strong> — Secure OAuth (conceptually; marketing-level). You connect your store so we can read orders and products.</li>
+          <li><strong>Pull orders + line items</strong> — We fetch orders and line items for the time window you configure.</li>
+          <li><strong>Map revenue and discounts per line item</strong> — Line-level revenue and allocated discounts from Shopify data.</li>
+          <li><strong>Apply fee models</strong> — Shopify fee %, payment fee %, and (if applicable) FX fee %. Configurable per store.</li>
+          <li><strong>Apply cost inputs</strong> — COGS per SKU, packaging default, shipping cost rules. So net margin reflects true cost.</li>
+          <li><strong>Allocate refunds + ads (Phase 2)</strong> — Refund allocation and ad spend allocation per SKU. Method options (e.g. revenue share, equal split) will be clearly explained in-product.</li>
+          <li><strong>Compute net profit + margin %</strong> — Per SKU and per order. You see true net margin, not just revenue.</li>
+          <li><strong>Flag risk + generate decision prompts</strong> — Negative margin, low margin, leakage hotspots. Alerts → decision prompts (reprice, pause ads, change discount, update COGS).</li>
+          <li><strong>Log decisions and track outcomes</strong> — Every recommendation and action is logged. Status: planned → applied → reviewed. Decision workflow with review cadence.</li>
         </ol>
       </section>
 
       <section class="section" aria-labelledby="innovative-heading">
         <h2 class="section-title" id="innovative-heading">What’s innovative</h2>
         <div class="innovation-block">
-          <p><strong>First 90-minute decision compression framework</strong> — We structure the critical window after an incident so that triage, communication, escalation, and first recovery steps are consistent and time-bound. Combined with <strong>structured escalation logic</strong> (thresholds, roles, approval steps), the system reduces the gap between “what should happen” and “what actually happens” across shifts. No buzzwords: the mechanism is configurable playbooks + decision logging + outcome tracking.</p>
+          <p><strong>Cost-risk reduction:</strong> Cost allocation and fee modelling that reveal hidden margin leakage. Most merchants don’t see true net margin per SKU once fees, shipping, discounts, and refunds are in the picture. We make that explicit.</p>
+          <p><strong>Process innovation:</strong> System-guided decision workflow—alerts → decision → log → review. Not founder-led heroics; repeatable margin checks and a review cadence so you don’t scale loss-makers and you have an audit trail for pricing and spend decisions.</p>
+          <p>Avoiding generic “AI” claims: this is a <strong>modelling engine + decision workflow</strong>, not black-box AI.</p>
         </div>
       </section>
 

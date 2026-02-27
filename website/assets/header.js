@@ -7,7 +7,7 @@
     '<a href="#main-content" class="sr-only skip-link">Skip to main content</a>' +
     '<header class="site-header" role="banner">' +
     '  <div class="container">' +
-    '    <p class="site-logo"><a href="' + base + 'index.html" aria-label="EORE Home">EORE</a></p>' +
+    '    <p class="site-logo"><a href="' + base + 'index.html" aria-label="EORE Margin Engine Home">EORE</a></p>' +
     '    <nav class="main-nav" aria-label="Main navigation">' +
     "      <ul>" +
     '        <li><a href="' + base + 'index.html" data-nav="home">Home</a></li>' +

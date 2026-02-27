@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Use Cases | EORE Operational Decision Systems</title>
-  <meta name="description" content="Warehouse use cases: conveyor stoppage, labour shortfall, inventory discrepancy, safety incident. Situation → Decision → Action → Outcome." />
-  <meta property="og:title" content="Use Cases | EORE" />
-  <meta property="og:description" content="Real scenarios: conveyor stoppage, labour shortfall, inventory discrepancy, safety." />
+  <title>Use Cases | EORE Shopify Margin Engine</title>
+  <meta name="description" content="EORE use cases: scaling high-ROAS loss SKUs, discount margin collapse, refund-heavy SKUs, FX erasing profit. Situation → Decision → Action → Outcome with sample metrics." />
+  <meta property="og:title" content="Use Cases | EORE Margin Engine" />
+  <meta property="og:description" content="Ecommerce scenarios: high ROAS but negative margin, discount leakage, refund allocation, FX." />
   <meta property="og:type" content="website" />
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
@@ -16,42 +16,42 @@
   <main id="main-content" tabindex="-1">
     <div class="container">
       <h1>Use Cases</h1>
-      <p class="lead">Four realistic warehouse scenarios: Situation → Decision → Action → Outcome, with metrics.</p>
+      <p class="lead">Four ecommerce scenarios: Situation → Decision → Action → Outcome. Metrics below are <strong>illustrative sample outcomes</strong> (e.g. “Stopped spend on 3 loss SKUs, recovered £X/month”)—not claims from live customers unless stated.</p>
 
       <section class="use-case">
-        <h2 class="section-title" id="uc1">1. Conveyor stoppage</h2>
-        <p><strong>Situation:</strong> Main outbound conveyor stops during peak. Cause unknown.</p>
-        <p><strong>Decision:</strong> What do we do next? Escalate to maintenance or try reset first? Who communicates to shipping?</p>
-        <p><strong>Action:</strong> System recommends: run first 90-minute playbook (triage → notify maintenance + shift manager → redirect flow to secondary line). Shift manager logs the decision and start time.</p>
-        <p><strong>Outcome:</strong> Downtime reduced from 45+ min (ad-hoc) to &lt;25 min. Repeat incidents for same root cause logged and tracked for follow-up.</p>
-        <div class="use-case-metrics">Metrics: Avg response time −40%; repeat incidents (same asset) −2 in 90 days.</div>
+        <h2 class="section-title" id="uc1">1. Scaling a product with high ROAS but negative net margin</h2>
+        <p><strong>Situation:</strong> A product has strong ROAS and revenue, so the merchant scales ad spend. After shipping, payment fees, and COGS, net margin is negative.</p>
+        <p><strong>Decision:</strong> Which products are safe to scale? Which need repricing or pause?</p>
+        <p><strong>Action:</strong> EORE surfaces SKU-level net margin. Merchant sees this SKU is loss-making after fees and shipping. Decision: pause ads, reprice or reduce shipping cost, then re-evaluate.</p>
+        <p><strong>Outcome:</strong> Stop scaling loss-makers; reallocate spend to profitable SKUs. Fewer cashflow shocks.</p>
+        <div class="use-case-metrics"><em>Example metrics (illustrative):</em> Stopped spend on 3 loss SKUs; recovered ~£400/month in margin; decision time from “scale” to “pause” under one week.</div>
       </section>
 
       <section class="use-case">
-        <h2 class="section-title" id="uc2">2. Labour shortfall</h2>
-        <p><strong>Situation:</strong> Four pickers no-show. Inbound and outbound targets at risk.</p>
-        <p><strong>Decision:</strong> Prioritise inbound or outbound? Reallocate from receiving? When to escalate to ops manager?</p>
-        <p><strong>Action:</strong> System recommends: apply labour reallocation template; escalate if fill rate drops below X% within 30 min. Supervisor logs reallocation and escalation time.</p>
-        <p><strong>Outcome:</strong> Decision time from “we have a shortfall” to “reallocation applied” under 15 min. Fill rate maintained within 5% of target.</p>
-        <div class="use-case-metrics">Metrics: Decision time &lt;15 min; fill rate variance −5%.</div>
+        <h2 class="section-title" id="uc2">2. Discount campaign causing margin collapse on a “top seller”</h2>
+        <p><strong>Situation:</strong> A top seller runs on 20% off. Revenue looks great; after discount and fees, margin collapses or goes negative.</p>
+        <p><strong>Decision:</strong> Which products need repricing or discount caps? Where is margin leakage?</p>
+        <p><strong>Action:</strong> Margin Engine allocates discounts per line item and flags low/negative margin. Merchant decides: cap discount for this SKU or raise base price.</p>
+        <p><strong>Outcome:</strong> Price correctly; avoid “revenue-only” scaling on discounted loss-makers.</p>
+        <div class="use-case-metrics"><em>Example metrics (illustrative):</em> Identified 2 “top sellers” below 5% margin after discount; repriced; margin recovered ~12% on those SKUs.</div>
       </section>
 
       <section class="use-case">
-        <h2 class="section-title" id="uc3">3. Inventory discrepancy (cycle count)</h2>
-        <p><strong>Situation:</strong> Cycle count shows large variance in a high-value SKU zone. Possible theft or process error.</p>
-        <p><strong>Decision:</strong> Stop operations in that zone? Escalate to security/ops? Who approves and when?</p>
-        <p><strong>Action:</strong> System recommends: follow discrepancy playbook—quarantine zone for recount, notify ops and (if threshold met) security; log in decision log with approval role.</p>
-        <p><strong>Outcome:</strong> Consistent process across shifts. Audit trail for every discrepancy and approval. Fewer repeat errors due to documented steps.</p>
-        <div class="use-case-metrics">Metrics: 100% of discrepancies logged; audit-ready in &lt;1 day.</div>
+        <h2 class="section-title" id="uc3">3. Refund-heavy SKU where refund allocation flips profitability</h2>
+        <p><strong>Situation:</strong> A SKU has high refund rate. Without allocating refunds to SKU, it looks profitable; once refunds are allocated (Phase 2), it’s loss-making.</p>
+        <p><strong>Decision:</strong> Which SKUs are actually profitable after returns? Where should we fix product or pause?</p>
+        <p><strong>Action:</strong> (Phase 2) Refund allocation per SKU. System flags “refund-heavy” and suggests: improve product/fulfilment or pause/repricing. Decision logged.</p>
+        <p><strong>Outcome:</strong> True net margin after returns; fewer wrong scaling decisions.</p>
+        <div class="use-case-metrics"><em>Example metrics (illustrative):</em> 1 SKU flipped from “profitable” to “loss” after refund allocation; paused ads; saved ~£200/month in wasted spend.</div>
       </section>
 
       <section class="use-case">
-        <h2 class="section-title" id="uc4">4. Safety incident (near-miss)</h2>
-        <p><strong>Situation:</strong> Near-miss reported: forklift and pedestrian in same aisle. No injury but policy requires investigation.</p>
-        <p><strong>Decision:</strong> Who investigates? When to escalate to facilities/safety? What immediate controls (e.g. aisle closure)?</p>
-        <p><strong>Action:</strong> System recommends: first 90-minute safety playbook—secure area, notify safety lead, assign investigator, log in decision log. Escalation if not acknowledged within 15 min.</p>
-        <p><strong>Outcome:</strong> All near-misses logged and tracked. Response time to “investigation started” under 30 min. Repeat incidents by location visible for trend analysis.</p>
-        <div class="use-case-metrics">Metrics: 100% logged; response time &lt;30 min; repeat incident rate by location tracked.</div>
+        <h2 class="section-title" id="uc4">4. Multi-currency orders where FX fees erase profit</h2>
+        <p><strong>Situation:</strong> Store sells in multiple currencies. FX and payment fees vary; some orders show healthy revenue but net margin is near zero or negative.</p>
+        <p><strong>Decision:</strong> Where is fee leakage? Which products/regions need price or fee assumptions updated?</p>
+        <p><strong>Action:</strong> Fee model includes FX fee %; margin view shows impact per order/SKU. Merchant adjusts pricing or fee assumptions and tracks in decision log.</p>
+        <p><strong>Outcome:</strong> Visibility into true net margin by currency/region; cashflow protection.</p>
+        <div class="use-case-metrics"><em>Example metrics (illustrative):</em> FX fees identified on 15% of orders; margin impact ~£150/month; pricing rule updated for non-USD.</div>
       </section>
 
       <p><a href="contact.html" class="btn btn-primary">Request pilot</a></p>
