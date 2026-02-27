@@ -32,3 +32,53 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model Store {
+  id           Int       @id @default(autoincrement())
+  shop         String    @unique
+  installedAt  DateTime  @default(now())
+  settings     Setting?
+  decisions    Decision[]
+}
+
+model Setting {
+  id                        Int      @id @default(autoincrement())
+  store                     Store    @relation(fields: [storeId], references: [id])
+  storeId                   Int      @unique
+  feePct                    Float    @default(0)
+  feeFixed                  Float    @default(0)
+  windowDays                Int      @default(90)
+  grossMarginThreshold      Float    @default(0.3)
+  negativeOrderMarginAlert  Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+model Decision {
+  id                 Int              @id @default(autoincrement())
+  store              Store            @relation(fields: [storeId], references: [id])
+  storeId            Int
+  type               String
+  payloadJson        String
+  recommendationJson String
+  plannedAction      String?
+  applied            Boolean          @default(false)
+  expectedImpact     String?
+  reviewDate         DateTime?
+  status             String           @default("Pending")
+  createdAt          DateTime         @default(now())
+  createdBy          String?
+  actions            DecisionAction[]
+}
+
+model DecisionAction {
+  id           Int       @id @default(autoincrement())
+  decision     Decision  @relation(fields: [decisionId], references: [id])
+  decisionId   Int
+  actionType   String
+  notes        String?
+  status       String   @default("Pending")
+  reviewDate   DateTime?
+  outcomeNotes String?
+  updatedAt    DateTime @default(now())
+}
