@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "build": "react-router build",
-    "dev": "shopify app dev",
+    "dev": "shopify app dev --use-localhost",
+    "dev:local": "shopify app dev --use-localhost",
+    "dev:reset": "shopify app dev --use-localhost --reset",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
     "deploy": "shopify app deploy",
