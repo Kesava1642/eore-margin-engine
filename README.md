@@ -30,6 +30,8 @@ shopify app dev
 
 Press P to open the URL to your app. Once you click install, you can start development.
 
+**Dev reset + reinstall:** After changing scopes or if preview fails with scope errors, follow [docs/DEV_RESET_REINSTALL.md](docs/DEV_RESET_REINSTALL.md) to run `shopify app dev --use-localhost --reset` and reinstall with updated permissions.
+
 Local development is powered by [the Shopify CLI](https://shopify.dev/docs/apps/tools/cli). It logs into your account, connects to an app, provides environment variables, updates remote config, creates a tunnel and provides commands to generate extensions.
 
 ### Authenticating and querying data
