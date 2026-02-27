@@ -9,12 +9,11 @@ const ORDERS_QUERY = `#graphql
       edges {
         node {
           id
-          name
+          createdAt
           lineItems(first: 250) {
             edges {
               node {
                 id
-                sku
                 title
                 quantity
                 originalTotalSet {
@@ -90,21 +89,156 @@ function getStableKeyAndSku(line, orderId, index) {
   };
 }
 
+function isPcdBlockedError(message) {
+  if (typeof message !== "string") return false;
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("not approved to access the order object") ||
+    lower.includes("protected customer data")
+  );
+}
+
+function aggregateOrdersToRows(ordersEdges) {
+  const agg = new Map();
+  let lineItemsParsed = 0;
+  let firstOrderId = null;
+  let firstLineItem = null;
+
+  for (const { node: order } of ordersEdges) {
+    if (!firstOrderId) firstOrderId = order.id;
+    const lineEdges = order.lineItems?.edges ?? [];
+    let lineIndex = 0;
+    for (const { node: line } of lineEdges) {
+      lineItemsParsed += 1;
+      const { key, displaySku } = getStableKeyAndSku(line, order.id, lineIndex);
+      lineIndex += 1;
+      const title = line.title || "Untitled";
+      const qty = Math.max(0, Number(line.quantity) || 0);
+      const amountStr = line.originalTotalSet?.shopMoney?.amount ?? "0";
+      const revenue = Number(amountStr) || 0;
+
+      if (!firstLineItem) {
+        firstLineItem = { sku: displaySku, title, qty, revenue };
+      }
+
+      const existing = agg.get(key);
+      if (existing) {
+        existing.quantity += qty;
+        existing.revenue += revenue;
+        existing.orderIds.add(order.id);
+      } else {
+        agg.set(key, {
+          sku: displaySku,
+          title,
+          quantity: qty,
+          revenue,
+          orderIds: new Set([order.id]),
+        });
+      }
+    }
+  }
+
+  const rows = Array.from(agg.values()).map((r) => ({
+    sku: r.sku,
+    title: r.title,
+    quantity: r.quantity,
+    orderCount: r.orderIds.size,
+    revenue: Math.round(r.revenue * 100) / 100,
+  }));
+
+  return {
+    rows,
+    lineItemsParsed,
+    firstOrderId,
+    firstLineItem,
+    ordersCount: ordersEdges.length,
+  };
+}
+
+const ADMIN_API_VERSION = "2025-01";
+
+async function fetchOrdersWithCustomToken(shopDomain, accessToken, query) {
+  const url = `https://${shopDomain.replace(/^https?:\/\//, "").split("/")[0]}/admin/api/${ADMIN_API_VERSION}/graphql.json`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": accessToken,
+    },
+    body: JSON.stringify({
+      query: ORDERS_QUERY,
+      variables: { query },
+    }),
+  });
+  return res.json();
+}
+
 export const loader = async ({ request }) => {
+  const query = `created_at:>=${formatDateDaysAgo(30)}`;
+  const tokenFallbackHint =
+    "Orders access blocked. Add SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_ACCESS_TOKEN to .env (see docs/DEV_CUSTOM_APP_TOKEN.md).";
+
+  let sessionShop = null;
+
   try {
     const { admin, session } = await authenticate.admin(request);
-    const query = `created_at:>=${formatDateDaysAgo(30)}`;
-    const response = await admin.graphql(ORDERS_QUERY, {
-      variables: { query },
-    });
+    sessionShop = session?.shop ?? null;
+    const response = await admin.graphql(ORDERS_QUERY, { variables: { query } });
     const json = await response.json();
 
     if (json.errors?.length) {
+      const message = json.errors.map((e) => e.message).join(", ");
+      if (isPcdBlockedError(message)) {
+        const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN?.trim();
+        const accessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
+        if (shopDomain && accessToken) {
+          const tokenJson = await fetchOrdersWithCustomToken(shopDomain, accessToken, query);
+          if (tokenJson.errors?.length) {
+            return {
+              ok: false,
+              shop: shopDomain,
+              authMode: undefined,
+              error: {
+                message: tokenJson.errors.map((e) => e.message).join(", "),
+                hint: tokenFallbackHint,
+              },
+              counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
+              preview: {},
+              rows: [],
+            };
+          }
+          const ordersEdges = tokenJson.data?.orders?.edges ?? [];
+          const agg = aggregateOrdersToRows(ordersEdges);
+          return {
+            ok: true,
+            shop: shopDomain,
+            authMode: "token-fallback",
+            counts: {
+              ordersFetched: agg.ordersCount,
+              lineItemsParsed: agg.lineItemsParsed,
+              skuRows: agg.rows.length,
+            },
+            preview: {
+              firstOrderId: agg.firstOrderId,
+              firstLineItem: agg.firstLineItem,
+            },
+            rows: agg.rows,
+          };
+        }
+        return {
+          ok: false,
+          shop: sessionShop,
+          error: { message, hint: tokenFallbackHint },
+          counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
+          preview: {},
+          rows: [],
+        };
+      }
       return {
         ok: false,
-        shop: session?.shop ?? null,
+        shop: sessionShop,
         error: {
-          message: json.errors.map((e) => e.message).join(", "),
+          message,
           hint: "Check Admin API permissions and query.",
         },
         counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
@@ -113,74 +247,70 @@ export const loader = async ({ request }) => {
       };
     }
 
-    const orders = json.data?.orders?.edges ?? [];
-    const agg = new Map();
-    let lineItemsParsed = 0;
-    let firstOrderId = null;
-    let firstLineItem = null;
-
-    for (const { node: order } of orders) {
-      if (!firstOrderId) firstOrderId = order.id;
-      const lineEdges = order.lineItems?.edges ?? [];
-      let lineIndex = 0;
-      for (const { node: line } of lineEdges) {
-        lineItemsParsed += 1;
-        const { key, displaySku } = getStableKeyAndSku(line, order.id, lineIndex);
-        lineIndex += 1;
-        const title = line.title || "Untitled";
-        const qty = Math.max(0, Number(line.quantity) || 0);
-        const amountStr = line.originalTotalSet?.shopMoney?.amount ?? "0";
-        const revenue = Number(amountStr) || 0;
-
-        if (!firstLineItem) {
-          firstLineItem = { sku: displaySku, title, qty, revenue };
-        }
-
-        const existing = agg.get(key);
-        if (existing) {
-          existing.quantity += qty;
-          existing.revenue += revenue;
-          existing.orderIds.add(order.id);
-        } else {
-          agg.set(key, {
-            sku: displaySku,
-            title,
-            quantity: qty,
-            revenue,
-            orderIds: new Set([order.id]),
-          });
-        }
-      }
-    }
-
-    const rows = Array.from(agg.values()).map((r) => ({
-      sku: r.sku,
-      title: r.title,
-      quantity: r.quantity,
-      orderCount: r.orderIds.size,
-      revenue: Math.round(r.revenue * 100) / 100,
-    }));
-
+    const ordersEdges = json.data?.orders?.edges ?? [];
+    const agg = aggregateOrdersToRows(ordersEdges);
     return {
       ok: true,
-      shop: session?.shop ?? null,
+      shop: sessionShop,
+      authMode: "session",
       counts: {
-        ordersFetched: orders.length,
-        lineItemsParsed,
-        skuRows: rows.length,
+        ordersFetched: agg.ordersCount,
+        lineItemsParsed: agg.lineItemsParsed,
+        skuRows: agg.rows.length,
       },
       preview: {
-        firstOrderId,
-        firstLineItem,
+        firstOrderId: agg.firstOrderId,
+        firstLineItem: agg.firstLineItem,
       },
-      rows,
+      rows: agg.rows,
     };
   } catch (e) {
+    const message = e?.message ?? "Unknown error";
+    if (isPcdBlockedError(message)) {
+      const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN?.trim();
+      const accessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
+      if (shopDomain && accessToken) {
+        try {
+          const tokenJson = await fetchOrdersWithCustomToken(shopDomain, accessToken, query);
+          if (!tokenJson.errors?.length) {
+            const ordersEdges = tokenJson.data?.orders?.edges ?? [];
+            const agg = aggregateOrdersToRows(ordersEdges);
+            return {
+              ok: true,
+              shop: shopDomain,
+              authMode: "token-fallback",
+              counts: {
+                ordersFetched: agg.ordersCount,
+                lineItemsParsed: agg.lineItemsParsed,
+                skuRows: agg.rows.length,
+              },
+              preview: {
+                firstOrderId: agg.firstOrderId,
+                firstLineItem: agg.firstLineItem,
+              },
+              rows: agg.rows,
+            };
+          } catch {
+            // fall through to final error
+          }
+        } catch {
+          // fall through
+        }
+      }
+      return {
+        ok: false,
+        shop: sessionShop ?? null,
+        error: { message, hint: tokenFallbackHint },
+        counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
+        preview: {},
+        rows: [],
+      };
+    }
     return {
       ok: false,
-      shop: null,
+      shop: sessionShop ?? null,
       error: {
-        message: e?.message ?? "Unknown error",
+        message,
         hint: "Admin API may be unavailable or session invalid.",
       },
       counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
@@ -250,7 +380,7 @@ export default function Index() {
   ];
 
   const isDev = typeof import.meta !== "undefined" && import.meta.env?.DEV === true;
-  const { ok, shop, error, counts = {}, preview = {}, rows: rawRows = [] } = loaderData;
+  const { ok, shop, error, authMode, counts = {}, preview = {}, rows: rawRows = [] } = loaderData;
   const hasRows = ok && rawRows.length > 0;
   const zeroOrders = ok && (counts.ordersFetched ?? 0) === 0;
 
@@ -262,6 +392,11 @@ export default function Index() {
             <s-stack direction="block" gap="tight">
               <s-text>
                 <strong>Connection:</strong> {shop ? `${shop} · Admin API ${ok ? "ok" : "error"}` : "—"}
+                {ok && authMode && (
+                  <span style={{ marginLeft: 8 }}>
+                    · Auth mode: {authMode === "token-fallback" ? "token-fallback" : "session"}
+                  </span>
+                )}
                 {error && (
                   <span style={{ color: "var(--p-color-text-critical, #d72c0d)" }}>
                     {" "}
@@ -313,7 +448,8 @@ export default function Index() {
 
           {!ok && (
             <s-banner tone="critical" title="Error">
-              {error?.message ?? "Failed to load data."} {error?.hint ?? ""}
+              {error?.message ?? "Failed to load data."}
+              {error?.hint ? ` ${error.hint}` : ""}
             </s-banner>
           )}
 
