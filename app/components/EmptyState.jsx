@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 export function EmptyState({ heading, description, action }) {
   return (
     <s-box
@@ -18,4 +20,11 @@ export function EmptyState({ heading, description, action }) {
     </s-box>
   );
 }
+
+EmptyState.propTypes = {
+  heading: PropTypes.string.isRequired,
+  description: PropTypes.string,
+  action: PropTypes.node,
+};
+
 

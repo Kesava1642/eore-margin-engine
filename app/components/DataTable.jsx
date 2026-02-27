@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 export function DataTable({ columns, rows, emptyState }) {
   if (!rows?.length) {
     return emptyState ?? null;
@@ -45,4 +47,20 @@ export function DataTable({ columns, rows, emptyState }) {
     </s-box>
   );
 }
+
+DataTable.propTypes = {
+  columns: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      header: PropTypes.node.isRequired,
+      align: PropTypes.oneOf(["left", "right", "center"]),
+    }),
+  ).isRequired,
+  rows: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    }),
+  ).isRequired,
+  emptyState: PropTypes.node,
+};
 

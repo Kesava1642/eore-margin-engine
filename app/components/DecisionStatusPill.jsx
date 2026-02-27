@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 const STATUS_TONE = {
   Pending: "warning",
   Implemented: "success",
@@ -13,4 +15,9 @@ export function DecisionStatusPill({ status }) {
     </s-badge>
   );
 }
+
+DecisionStatusPill.propTypes = {
+  status: PropTypes.string.isRequired,
+};
+
 

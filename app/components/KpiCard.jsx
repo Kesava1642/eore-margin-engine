@@ -1,3 +1,5 @@
+import PropTypes from "prop-types";
+
 export function KpiCard({ label, value, helpText }) {
   return (
     <s-box
@@ -18,4 +20,11 @@ export function KpiCard({ label, value, helpText }) {
     </s-box>
   );
 }
+
+KpiCard.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  helpText: PropTypes.string,
+};
+
 
