@@ -12,17 +12,9 @@ include_config_on_deploy = true
 [webhooks]
 api_version = "2026-01"
 
-  [[webhooks.subscriptions]]
-  topics = [ "app/uninstalled" ]
-  uri = "/webhooks/app/uninstalled"
-
-  [[webhooks.subscriptions]]
-  topics = [ "app/scopes_update" ]
-  uri = "/webhooks/app/scopes_update"
-
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_customers,read_discounts,read_fulfillments,read_inventory,read_orders,read_products,read_returns,read_shipping"
+scopes = "read_customers,read_discounts,read_fulfillments,read_inventory,read_orders,read_products,read_returns,read_shipping,write_products,write_metaobject_definitions"
 optional_scopes = [ "read_analytics" ]
 use_legacy_install_flow = false
 
