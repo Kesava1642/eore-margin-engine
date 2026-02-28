@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
-import { useLoaderData } from "react-router";
+import { useCallback, useMemo, useState, useRef, useEffect } from "react";
+import { useLoaderData, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
 
 const ORDERS_QUERY = `#graphql
   query OrdersWithLineItems($query: String) {
@@ -199,6 +200,54 @@ function makeDebug(opts) {
   };
 }
 
+async function getSavedCogsBySku(shop) {
+  if (!shop || typeof shop !== "string") return {};
+  try {
+    const rows = await prisma.skuCost.findMany({
+      where: { shop: shop.trim() },
+    });
+    return Object.fromEntries(
+      rows.map((r) => [r.sku, Number(r.cogsUnit)]).filter(([, n]) => Number.isFinite(n)),
+    );
+  } catch {
+    return {};
+  }
+}
+
+export const action = async ({ request }) => {
+  if (request.method !== "POST") return { ok: false, error: "Method not allowed" };
+  try {
+    const { session } = await authenticate.admin(request);
+    const shop = session?.shop?.trim();
+    if (!shop) return { ok: false, error: "Missing shop" };
+    const formData = await request.formData();
+    const intent = formData.get("intent");
+    if (intent !== "save_cogs") return { ok: false, error: "Invalid intent" };
+    const sku = formData.get("sku");
+    if (typeof sku !== "string" || !sku.trim()) return { ok: false, error: "sku is required" };
+    const skuTrim = sku.trim();
+    const title = formData.get("title");
+    const titleVal = typeof title === "string" ? title.trim() || null : null;
+    const cogsUnitRaw = formData.get("cogsUnit");
+    const cogsUnitNum = cogsUnitRaw !== null && cogsUnitRaw !== "" ? Number(cogsUnitRaw) : 0;
+    if (!Number.isFinite(cogsUnitNum) || cogsUnitNum < 0)
+      return { ok: false, error: "cogsUnit must be a non-negative number" };
+    await prisma.skuCost.upsert({
+      where: { shop_sku: { shop, sku: skuTrim } },
+      update: { cogsUnit: cogsUnitNum, title: titleVal },
+      create: {
+        shop,
+        sku: skuTrim,
+        title: titleVal,
+        cogsUnit: cogsUnitNum,
+      },
+    });
+    return { ok: true, sku: skuTrim, cogsUnit: cogsUnitNum };
+  } catch (e) {
+    return { ok: false, error: e?.message ?? "Failed to save COGS" };
+  }
+};
+
 export const loader = async ({ request }) => {
   const query = `created_at:>=${formatDateDaysAgo(30)}`;
   const hasShopDomain = Boolean(
@@ -211,6 +260,8 @@ export const loader = async ({ request }) => {
   const missingEnvHint = `Missing env: SHOPIFY_SHOP_DOMAIN=${hasShopDomain ? "present" : "missing"}, SHOPIFY_ADMIN_ACCESS_TOKEN=${hasAdminToken ? "present" : "missing"}. Add them to .env (see docs/DEV_CUSTOM_APP_TOKEN.md) and restart dev.`;
   const tokenFailedHint =
     "Token fallback failed. Check token, scopes, and shop domain (see docs/DEV_CUSTOM_APP_TOKEN.md).";
+  const pcdDocLine =
+    "See docs/SHOPIFY_ORDERS_ACCESS.md for the single correct path (Production approval vs Dev token).";
 
   let sessionShop = null;
 
@@ -236,11 +287,12 @@ export const loader = async ({ request }) => {
               shop: shopDomain,
               error: {
                 message: result.errors.map((e) => e.message).join(", "),
-                hint: tokenFailedHint,
+                hint: `${tokenFailedHint} ${pcdDocLine}`,
               },
               counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
               preview: {},
               rows: [],
+              savedCogsBySku: {},
               debug: makeDebug({
                 authMode: "blocked",
                 hasShopDomain,
@@ -253,6 +305,7 @@ export const loader = async ({ request }) => {
           }
           const ordersEdges = result.data?.orders?.edges ?? [];
           const agg = aggregateOrdersToRows(ordersEdges);
+          const savedCogsBySku = await getSavedCogsBySku(shopDomain);
           return {
             ok: true,
             shop: shopDomain,
@@ -267,6 +320,7 @@ export const loader = async ({ request }) => {
               firstLineItem: agg.firstLineItem,
             },
             rows: agg.rows,
+            savedCogsBySku,
             debug: makeDebug({
               authMode: "token-fallback",
               hasShopDomain,
@@ -280,10 +334,11 @@ export const loader = async ({ request }) => {
         return {
           ok: false,
           shop: sessionShop,
-          error: { message, hint: missingEnvHint },
+          error: { message, hint: `${missingEnvHint} ${pcdDocLine}` },
           counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
           preview: {},
           rows: [],
+          savedCogsBySku: {},
           debug: makeDebug({
             authMode: "blocked",
             hasShopDomain,
@@ -304,12 +359,14 @@ export const loader = async ({ request }) => {
         counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
         preview: {},
         rows: [],
+        savedCogsBySku: {},
         debug: makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }),
       };
     }
 
     const ordersEdges = json.data?.orders?.edges ?? [];
     const agg = aggregateOrdersToRows(ordersEdges);
+    const savedCogsBySku = await getSavedCogsBySku(sessionShop);
     return {
       ok: true,
       shop: sessionShop,
@@ -324,6 +381,7 @@ export const loader = async ({ request }) => {
         firstLineItem: agg.firstLineItem,
       },
       rows: agg.rows,
+      savedCogsBySku,
       debug: makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }),
     };
   } catch (e) {
@@ -343,6 +401,7 @@ export const loader = async ({ request }) => {
           if (!result.errors?.length) {
             const ordersEdges = result.data?.orders?.edges ?? [];
             const agg = aggregateOrdersToRows(ordersEdges);
+            const savedCogsBySku = await getSavedCogsBySku(shopDomain);
             return {
               ok: true,
               shop: shopDomain,
@@ -357,6 +416,7 @@ export const loader = async ({ request }) => {
                 firstLineItem: agg.firstLineItem,
               },
               rows: agg.rows,
+              savedCogsBySku,
               debug: makeDebug({
                 authMode: "token-fallback",
                 hasShopDomain,
@@ -374,10 +434,11 @@ export const loader = async ({ request }) => {
         return {
           ok: false,
           shop: sessionShop ?? null,
-          error: { message, hint: tokenFailedHint },
+          error: { message, hint: `${tokenFailedHint} ${pcdDocLine}` },
           counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
           preview: {},
           rows: [],
+          savedCogsBySku: {},
           debug: makeDebug({
             authMode: "blocked",
             hasShopDomain,
@@ -391,10 +452,11 @@ export const loader = async ({ request }) => {
       return {
         ok: false,
         shop: sessionShop ?? null,
-        error: { message, hint: missingEnvHint },
+        error: { message, hint: `${missingEnvHint} ${pcdDocLine}` },
         counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
         preview: {},
         rows: [],
+        savedCogsBySku: {},
         debug: makeDebug({
           authMode: "blocked",
           hasShopDomain,
@@ -415,6 +477,7 @@ export const loader = async ({ request }) => {
       counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
       preview: {},
       rows: [],
+      savedCogsBySku: {},
       debug: makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }),
     };
   }
@@ -425,8 +488,34 @@ const WARN_MARGIN_PERCENT = 10;
 export default function Index() {
   const loaderData = useLoaderData?.() ?? {};
   const [feePercent, setFeePercent] = useState(3);
-  const [cogsBySku, setCogsBySku] = useState({});
+  const [cogsBySku, setCogsBySku] = useState(() => loaderData.savedCogsBySku ?? {});
   const [lastUpdated] = useState(() => new Date().toISOString());
+  const [savedSkuAt, setSavedSkuAt] = useState({});
+  const [errorBySku, setErrorBySku] = useState({});
+  const fetcher = useFetcher();
+  const lastSubmitSkuRef = useRef(null);
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) return;
+    const sku = fetcher.data.ok ? fetcher.data.sku : lastSubmitSkuRef.current;
+    if (fetcher.data.ok && sku) {
+      setSavedSkuAt((prev) => ({ ...prev, [sku]: Date.now() }));
+      setErrorBySku((prev) => ({ ...prev, [sku]: undefined }));
+      const t = setTimeout(() => setSavedSkuAt((prev) => ({ ...prev, [sku]: undefined })), 3000);
+      return () => clearTimeout(t);
+    }
+    if (!fetcher.data.ok && sku)
+      setErrorBySku((prev) => ({ ...prev, [sku]: fetcher.data.error ?? "Save failed" }));
+    lastSubmitSkuRef.current = null;
+  }, [fetcher.state, fetcher.data]);
+
+  const handleSaveCogs = useCallback((sku, title, cogsUnit) => {
+    lastSubmitSkuRef.current = sku;
+    fetcher.submit(
+      { intent: "save_cogs", sku, title: title ?? "", cogsUnit: String(cogsUnit ?? 0) },
+      { method: "POST" },
+    );
+  }, [fetcher]);
 
   const updateCogs = useCallback((sku, value) => {
     const num = value === "" ? 0 : Number(value);
@@ -444,20 +533,39 @@ export default function Index() {
       const cogsTotal = cogs * qty;
       const netProfit = revenue - fees - cogsTotal;
       const marginPercent = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+      const isSaving = fetcher.state !== "idle" && lastSubmitSkuRef.current === r.sku;
+      const savedAt = savedSkuAt[r.sku];
+      const rowError = errorBySku[r.sku];
       return {
         ...r,
         id: r.sku,
         revenue: revenue.toFixed(2),
         cogsInput: (
-          <input
-            type="number"
-            min={0}
-            step={0.01}
-            value={cogsBySku[r.sku] ?? ""}
-            onChange={(e) => updateCogs(r.sku, e.target.value)}
-            style={{ width: "72px" }}
-            aria-label={`COGS for ${r.sku}`}
-          />
+          <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              value={cogsBySku[r.sku] ?? ""}
+              onChange={(e) => updateCogs(r.sku, e.target.value)}
+              style={{ width: 72 }}
+              aria-label={`COGS for ${r.sku}`}
+            />
+            <button
+              type="button"
+              onClick={() => handleSaveCogs(r.sku, r.title, cogsBySku[r.sku] ?? 0)}
+              disabled={isSaving}
+              style={{ fontSize: 12, padding: "2px 8px" }}
+            >
+              {isSaving ? "Saving…" : "Save"}
+            </button>
+            {savedAt && (
+              <span style={{ color: "var(--p-color-text-success, #008060)", fontSize: 12 }}>Saved</span>
+            )}
+            {rowError && (
+              <span style={{ color: "var(--p-color-text-critical, #d72c0d)", fontSize: 12 }}>{rowError}</span>
+            )}
+          </span>
         ),
         fees: fees.toFixed(2),
         netProfit: netProfit.toFixed(2),
@@ -465,7 +573,16 @@ export default function Index() {
         _marginPercent: marginPercent,
       };
     });
-  }, [loaderData.rows, feePercent, cogsBySku, updateCogs]);
+  }, [
+    loaderData.rows,
+    feePercent,
+    cogsBySku,
+    updateCogs,
+    fetcher.state,
+    savedSkuAt,
+    errorBySku,
+    handleSaveCogs,
+  ]);
 
   const columns = [
     { id: "sku", header: "SKU", align: "left" },

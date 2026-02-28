@@ -1,3 +1,4 @@
+import "dotenv/config";
 import "@shopify/shopify-app-react-router/adapters/node";
 import {
   ApiVersion,
@@ -6,6 +7,19 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+
+if (process.env.NODE_ENV !== "production") {
+  if (!global.__eoreOrdersEnvWarned) {
+    const hasShop = process.env.SHOPIFY_SHOP_DOMAIN?.trim();
+    const hasToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
+    if (!hasShop || !hasToken) {
+      console.warn(
+        "[DEV] Missing .env variables for Orders token fallback: SHOPIFY_SHOP_DOMAIN and/or SHOPIFY_ADMIN_ACCESS_TOKEN. See docs/DEV_CUSTOM_APP_TOKEN.md",
+      );
+      global.__eoreOrdersEnvWarned = true;
+    }
+  }
+}
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,

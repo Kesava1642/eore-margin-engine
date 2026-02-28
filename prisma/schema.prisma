@@ -82,3 +82,18 @@ model DecisionAction {
   outcomeNotes String?
   updatedAt    DateTime @default(now())
 }
+
+model SkuCost {
+  id        String   @id @default(cuid())
+  shop      String
+  sku       String
+  title     String?
+  cogsUnit  Float
+  currency  String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([shop, sku])
+  @@index([shop])
+  @@index([sku])
+}
