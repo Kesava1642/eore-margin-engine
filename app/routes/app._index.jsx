@@ -214,6 +214,19 @@ async function getSavedCogsBySku(shop) {
   }
 }
 
+async function getDebugDb(shop) {
+  const dbUrl = process.env.DATABASE_URL || "(sqlite default)";
+  let skuCostRowCount = null;
+  if (shop && typeof shop === "string") {
+    try {
+      skuCostRowCount = await prisma.skuCost.count({ where: { shop: shop.trim() } });
+    } catch {
+      skuCostRowCount = null;
+    }
+  }
+  return { dbUrl, skuCostRowCount };
+}
+
 export const action = async ({ request }) => {
   if (request.method !== "POST") return { ok: false, error: "Method not allowed" };
   try {
@@ -242,7 +255,7 @@ export const action = async ({ request }) => {
         cogsUnit: cogsUnitNum,
       },
     });
-    return { ok: true, sku: skuTrim, cogsUnit: cogsUnitNum };
+    return { ok: true, sku: skuTrim, cogsUnit: cogsUnitNum, savedAt: new Date().toISOString() };
   } catch (e) {
     return { ok: false, error: e?.message ?? "Failed to save COGS" };
   }
@@ -282,6 +295,7 @@ export const loader = async ({ request }) => {
           const tokenHttpStatus = result.status;
           const tokenGraphqlError = result.graphqlError;
           if (result.errors?.length) {
+            const debugDb = await getDebugDb(shopDomain);
             return {
               ok: false,
               shop: shopDomain,
@@ -293,19 +307,20 @@ export const loader = async ({ request }) => {
               preview: {},
               rows: [],
               savedCogsBySku: {},
-              debug: makeDebug({
+              debug: { ...makeDebug({
                 authMode: "blocked",
                 hasShopDomain,
                 hasAdminToken,
                 tokenAttempted,
                 tokenHttpStatus,
                 tokenGraphqlError,
-              }),
+              }), db: debugDb },
             };
           }
           const ordersEdges = result.data?.orders?.edges ?? [];
           const agg = aggregateOrdersToRows(ordersEdges);
           const savedCogsBySku = await getSavedCogsBySku(shopDomain);
+          const debugDb = await getDebugDb(shopDomain);
           return {
             ok: true,
             shop: shopDomain,
@@ -321,16 +336,17 @@ export const loader = async ({ request }) => {
             },
             rows: agg.rows,
             savedCogsBySku,
-            debug: makeDebug({
+            debug: { ...makeDebug({
               authMode: "token-fallback",
               hasShopDomain,
               hasAdminToken,
               tokenAttempted,
               tokenHttpStatus,
               tokenGraphqlError: null,
-            }),
+            }), db: debugDb },
           };
         }
+        const debugDb = await getDebugDb(sessionShop);
         return {
           ok: false,
           shop: sessionShop,
@@ -339,16 +355,17 @@ export const loader = async ({ request }) => {
           preview: {},
           rows: [],
           savedCogsBySku: {},
-          debug: makeDebug({
+          debug: { ...makeDebug({
             authMode: "blocked",
             hasShopDomain,
             hasAdminToken,
             tokenAttempted: false,
             tokenHttpStatus: null,
             tokenGraphqlError: null,
-          }),
+          }), db: debugDb },
         };
       }
+      const debugDb = await getDebugDb(sessionShop);
       return {
         ok: false,
         shop: sessionShop,
@@ -360,13 +377,14 @@ export const loader = async ({ request }) => {
         preview: {},
         rows: [],
         savedCogsBySku: {},
-        debug: makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }),
+        debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDb },
       };
     }
 
     const ordersEdges = json.data?.orders?.edges ?? [];
     const agg = aggregateOrdersToRows(ordersEdges);
     const savedCogsBySku = await getSavedCogsBySku(sessionShop);
+    const debugDb = await getDebugDb(sessionShop);
     return {
       ok: true,
       shop: sessionShop,
@@ -382,7 +400,7 @@ export const loader = async ({ request }) => {
       },
       rows: agg.rows,
       savedCogsBySku,
-      debug: makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }),
+      debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDb },
     };
   } catch (e) {
     const message = e?.message ?? "Unknown error";
@@ -402,6 +420,7 @@ export const loader = async ({ request }) => {
             const ordersEdges = result.data?.orders?.edges ?? [];
             const agg = aggregateOrdersToRows(ordersEdges);
             const savedCogsBySku = await getSavedCogsBySku(shopDomain);
+            const debugDb = await getDebugDb(shopDomain);
             return {
               ok: true,
               shop: shopDomain,
@@ -417,20 +436,21 @@ export const loader = async ({ request }) => {
               },
               rows: agg.rows,
               savedCogsBySku,
-              debug: makeDebug({
+              debug: { ...makeDebug({
                 authMode: "token-fallback",
                 hasShopDomain,
                 hasAdminToken,
                 tokenAttempted,
                 tokenHttpStatus,
                 tokenGraphqlError: null,
-              }),
+              }), db: debugDb },
             };
           }
         } catch {
           tokenAttempted = true;
           // tokenHttpStatus / tokenGraphqlError may be unset if fetch threw before response
         }
+        const debugDbCatch1 = await getDebugDb(sessionShop ?? null);
         return {
           ok: false,
           shop: sessionShop ?? null,
@@ -439,16 +459,17 @@ export const loader = async ({ request }) => {
           preview: {},
           rows: [],
           savedCogsBySku: {},
-          debug: makeDebug({
+          debug: { ...makeDebug({
             authMode: "blocked",
             hasShopDomain,
             hasAdminToken,
             tokenAttempted,
             tokenHttpStatus,
             tokenGraphqlError,
-          }),
+          }), db: debugDbCatch1 },
         };
       }
+      const debugDbCatch2 = await getDebugDb(sessionShop ?? null);
       return {
         ok: false,
         shop: sessionShop ?? null,
@@ -457,16 +478,17 @@ export const loader = async ({ request }) => {
         preview: {},
         rows: [],
         savedCogsBySku: {},
-        debug: makeDebug({
+        debug: { ...makeDebug({
           authMode: "blocked",
           hasShopDomain,
           hasAdminToken,
           tokenAttempted: false,
           tokenHttpStatus: null,
           tokenGraphqlError: null,
-        }),
+        }), db: debugDbCatch2 },
       };
     }
+    const debugDbCatch3 = await getDebugDb(sessionShop ?? null);
     return {
       ok: false,
       shop: sessionShop ?? null,
@@ -478,7 +500,7 @@ export const loader = async ({ request }) => {
       preview: {},
       rows: [],
       savedCogsBySku: {},
-      debug: makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }),
+      debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDbCatch3 },
     };
   }
 };
@@ -492,6 +514,7 @@ export default function Index() {
   const [lastUpdated] = useState(() => new Date().toISOString());
   const [savedSkuAt, setSavedSkuAt] = useState({});
   const [errorBySku, setErrorBySku] = useState({});
+  const [lastSave, setLastSave] = useState(null);
   const fetcher = useFetcher();
   const lastSubmitSkuRef = useRef(null);
 
@@ -501,6 +524,7 @@ export default function Index() {
     if (fetcher.data.ok && sku) {
       setSavedSkuAt((prev) => ({ ...prev, [sku]: Date.now() }));
       setErrorBySku((prev) => ({ ...prev, [sku]: undefined }));
+      if (fetcher.data.savedAt) setLastSave({ sku: fetcher.data.sku, savedAt: fetcher.data.savedAt });
       const t = setTimeout(() => setSavedSkuAt((prev) => ({ ...prev, [sku]: undefined })), 3000);
       return () => clearTimeout(t);
     }
@@ -598,6 +622,9 @@ export default function Index() {
 
   const isDev = typeof import.meta !== "undefined" && import.meta.env?.DEV === true;
   const { ok, shop, error, authMode, counts = {}, preview = {}, rows: rawRows = [], debug = {} } = loaderData;
+  const debugDb = debug?.db ?? {};
+  const dbUrl = debugDb.dbUrl ?? "—";
+  const skuCostRowCount = debugDb.skuCostRowCount != null ? String(debugDb.skuCostRowCount) : "—";
   const hasRows = ok && rawRows.length > 0;
   const zeroOrders = ok && (counts.ordersFetched ?? 0) === 0;
 
@@ -648,6 +675,17 @@ export default function Index() {
               <s-text>
                 <strong>lastUpdated:</strong> {lastUpdated}
               </s-text>
+              <s-text>
+                <strong>DB:</strong> {dbUrl}
+              </s-text>
+              <s-text>
+                <strong>SkuCost rows (this shop):</strong> {skuCostRowCount}
+              </s-text>
+              {lastSave && (
+                <s-text>
+                  <strong>Last save:</strong> {lastSave.sku} @ {lastSave.savedAt}
+                </s-text>
+              )}
             </s-stack>
           </s-box>
         </s-section>
