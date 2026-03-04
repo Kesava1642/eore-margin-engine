@@ -214,17 +214,39 @@ async function getSavedCogsBySku(shop) {
   }
 }
 
+async function getLastSkuCostRows(shop) {
+  if (!shop || typeof shop !== "string") return [];
+  try {
+    const rows = await prisma.skuCost.findMany({
+      where: { shop: shop.trim() },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+      select: { sku: true, cogsUnit: true, updatedAt: true },
+    });
+    return rows.map((r) => ({
+      sku: r.sku,
+      cogsUnit: Number(r.cogsUnit),
+      updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 async function getDebugDb(shop) {
   const dbUrl = process.env.DATABASE_URL || "(sqlite default)";
   let skuCostRowCount = null;
+  let lastSkuCostRows = [];
   if (shop && typeof shop === "string") {
     try {
       skuCostRowCount = await prisma.skuCost.count({ where: { shop: shop.trim() } });
+      lastSkuCostRows = await getLastSkuCostRows(shop);
     } catch {
       skuCostRowCount = null;
+      lastSkuCostRows = [];
     }
   }
-  return { dbUrl, skuCostRowCount };
+  return { dbUrl, skuCostRowCount, lastSkuCostRows };
 }
 
 export const action = async ({ request }) => {
@@ -625,6 +647,7 @@ export default function Index() {
   const debugDb = debug?.db ?? {};
   const dbUrl = debugDb.dbUrl ?? "—";
   const skuCostRowCount = debugDb.skuCostRowCount != null ? String(debugDb.skuCostRowCount) : "—";
+  const lastSkuCostRows = Array.isArray(debugDb.lastSkuCostRows) ? debugDb.lastSkuCostRows : [];
   const hasRows = ok && rawRows.length > 0;
   const zeroOrders = ok && (counts.ordersFetched ?? 0) === 0;
 
@@ -685,6 +708,29 @@ export default function Index() {
                 <s-text>
                   <strong>Last save:</strong> {lastSave.sku} @ {lastSave.savedAt}
                 </s-text>
+              )}
+            </s-stack>
+          </s-box>
+        </s-section>
+      )}
+
+      {isDev && (
+        <s-section heading="COGS Debug">
+          <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+            <s-stack direction="block" gap="tight">
+              <s-text>
+                <strong>Last 5 saved COGS:</strong>
+              </s-text>
+              {lastSkuCostRows.length === 0 ? (
+                <s-text tone="subdued">None for this shop.</s-text>
+              ) : (
+                <s-stack direction="block" gap="tight">
+                  {lastSkuCostRows.map((row, i) => (
+                    <s-text key={i}>
+                      {row.sku} — {row.cogsUnit} — {row.updatedAt}
+                    </s-text>
+                  ))}
+                </s-stack>
               )}
             </s-stack>
           </s-box>
