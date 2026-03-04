@@ -1,10 +1,31 @@
 import { useCallback, useMemo, useState, useRef, useEffect } from "react";
-import { useLoaderData, useFetcher } from "react-router";
+import { useLoaderData, useFetcher, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import {
+  IndexTable,
+  TextField,
+  Badge,
+  Page,
+  Card,
+  SkeletonPage,
+  SkeletonBodyText,
+  SkeletonDisplayText,
+  Toast,
+  Banner,
+} from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getCogsMap, getShopSettings } from "../services/shop-data.server";
 import { computeRowMargin } from "../lib/margin";
+
+const DEFAULT_CURRENCY = "USD";
+const WARN_MARGIN_PCT = 10;
+
+function formatCurrency(value, currency = DEFAULT_CURRENCY) {
+  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(
+    Number(value) || 0,
+  );
+}
 
 const ORDERS_QUERY = `#graphql
   query OrdersWithLineItems($query: String) {
@@ -560,8 +581,6 @@ export const loader = async ({ request }) => {
   }
 };
 
-const WARN_MARGIN_PERCENT = 10;
-
 function getDefaultFeePct(shopFeeSettings) {
   if (!shopFeeSettings || typeof shopFeeSettings !== "object") return 3;
   const a = Number(shopFeeSettings.shopifyFeePct) || 0;
@@ -579,36 +598,54 @@ export default function Index() {
   const [savedSkuAt, setSavedSkuAt] = useState({});
   const [errorBySku, setErrorBySku] = useState({});
   const [lastSave, setLastSave] = useState(null);
-  const fetcher = useFetcher();
+  const [savingSku, setSavingSku] = useState(null);
+  const [toastError, setToastError] = useState(null);
+  const navigation = useNavigation();
   const lastSubmitSkuRef = useRef(null);
 
-  useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data) return;
-    const sku = fetcher.data.ok ? fetcher.data.sku : lastSubmitSkuRef.current;
-    if (fetcher.data.ok && sku) {
-      setSavedSkuAt((prev) => ({ ...prev, [sku]: Date.now() }));
-      setErrorBySku((prev) => ({ ...prev, [sku]: undefined }));
-      if (fetcher.data.savedAt) setLastSave({ sku: fetcher.data.sku, savedAt: fetcher.data.savedAt });
-      const t = setTimeout(() => setSavedSkuAt((prev) => ({ ...prev, [sku]: undefined })), 3000);
-      return () => clearTimeout(t);
+  const handleSaveCogs = useCallback(async (row, cogsUnit) => {
+    const sku = row.sku;
+    const variantId = row.variantId;
+    if (!variantId) {
+      setToastError("Cannot save COGS: row has no variant ID");
+      return;
     }
-    if (!fetcher.data.ok && sku)
-      setErrorBySku((prev) => ({ ...prev, [sku]: fetcher.data.error ?? "Save failed" }));
-    lastSubmitSkuRef.current = null;
-  }, [fetcher.state, fetcher.data]);
-
-  const handleSaveCogs = useCallback((sku, title, cogsUnit) => {
     lastSubmitSkuRef.current = sku;
-    fetcher.submit(
-      { intent: "save_cogs", sku, title: title ?? "", cogsUnit: String(cogsUnit ?? 0) },
-      { method: "POST" },
-    );
-  }, [fetcher]);
+    setSavingSku(sku);
+    setErrorBySku((prev) => ({ ...prev, [sku]: undefined }));
+    try {
+      const res = await fetch("/api/cogs", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          variantId,
+          sku: row.sku,
+          cogsPerUnit: Number(cogsUnit) || 0,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data?.error ?? "Save failed";
+        setErrorBySku((prev) => ({ ...prev, [sku]: msg }));
+        setToastError(msg);
+        return;
+      }
+      setCogsBySku((prev) => ({ ...prev, [sku]: Number(cogsUnit) || 0 }));
+      setSavedSkuAt((prev) => ({ ...prev, [sku]: Date.now() }));
+      setTimeout(() => setSavedSkuAt((prev) => ({ ...prev, [sku]: undefined })), 3000);
+    } finally {
+      setSavingSku(null);
+      lastSubmitSkuRef.current = null;
+    }
+  }, []);
 
   const updateCogs = useCallback((sku, value) => {
     const num = value === "" ? 0 : Number(value);
     setCogsBySku((prev) => (Number.isNaN(num) ? prev : { ...prev, [sku]: num }));
   }, []);
+
+  const shopCurrency = loaderData.shopCurrency ?? DEFAULT_CURRENCY;
 
   const tableRows = useMemo(() => {
     const rows = loaderData.rows ?? [];
@@ -623,68 +660,53 @@ export default function Index() {
         cogsPerUnit,
         totalFeePct,
       );
-      const isSaving = fetcher.state !== "idle" && lastSubmitSkuRef.current === r.sku;
+      const isSaving = savingSku === r.sku;
       const savedAt = savedSkuAt[r.sku];
       const rowError = errorBySku[r.sku];
       return {
         ...r,
         id: r.sku,
-        revenue: revenue.toFixed(2),
-        cogsInput: (
-          <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <input
-              type="number"
-              min={0}
-              step={0.01}
-              value={cogsBySku[r.sku] ?? ""}
-              onChange={(e) => updateCogs(r.sku, e.target.value)}
-              style={{ width: 72 }}
-              aria-label={`COGS for ${r.sku}`}
-            />
-            <button
-              type="button"
-              onClick={() => handleSaveCogs(r.sku, r.title, cogsBySku[r.sku] ?? 0)}
-              disabled={isSaving}
-              style={{ fontSize: 12, padding: "2px 8px" }}
-            >
-              {isSaving ? "Saving…" : "Save"}
-            </button>
-            {savedAt && (
-              <span style={{ color: "var(--p-color-text-success, #008060)", fontSize: 12 }}>Saved</span>
-            )}
-            {rowError && (
-              <span style={{ color: "var(--p-color-text-critical, #d72c0d)", fontSize: 12 }}>{rowError}</span>
-            )}
-          </span>
-        ),
-        fees: fees.toFixed(2),
-        netProfit: netProfit.toFixed(2),
-        marginPercent: marginPct.toFixed(1) + "%",
-        _marginPercent: marginPct,
+        _revenue: revenue,
+        _fees: fees,
+        _netProfit: netProfit,
+        _marginPct: marginPct,
+        revenueFormatted: formatCurrency(revenue, shopCurrency),
+        feesFormatted: formatCurrency(fees, shopCurrency),
+        netProfitFormatted: formatCurrency(netProfit, shopCurrency),
+        marginPercentFormatted: `${marginPct.toFixed(1)}%`,
+        cogsPerUnit,
+        isSaving,
+        savedAt,
+        rowError,
       };
     });
   }, [
     loaderData.rows,
+    loaderData.shopCurrency,
     feePercent,
     cogsBySku,
-    updateCogs,
-    fetcher.state,
+    savingSku,
     savedSkuAt,
     errorBySku,
-    handleSaveCogs,
   ]);
 
-  const columns = [
-    { id: "sku", header: "SKU", align: "left" },
-    { id: "title", header: "Title", align: "left" },
-    { id: "quantity", header: "Qty", align: "right" },
-    { id: "orderCount", header: "Orders", align: "right" },
-    { id: "revenue", header: "Revenue", align: "right" },
-    { id: "cogsInput", header: "COGS/unit", align: "right" },
-    { id: "fees", header: "Fees", align: "right" },
-    { id: "netProfit", header: "Net Profit", align: "right" },
-    { id: "marginPercent", header: "Margin %", align: "right" },
-  ];
+  const [sortKey, setSortKey] = useState("marginPct");
+  const [sortDir, setSortDir] = useState("desc");
+
+  const sortedRows = useMemo(() => {
+    const key = sortKey === "marginPercent" ? "_marginPct" : sortKey === "netProfit" ? "_netProfit" : "_revenue";
+    return [...tableRows].sort((a, b) => {
+      const va = a[key] ?? 0;
+      const vb = b[key] ?? 0;
+      const d = va - vb;
+      return sortDir === "asc" ? d : -d;
+    });
+  }, [tableRows, sortKey, sortDir]);
+
+  const toggleSort = useCallback((key) => {
+    setSortKey(key);
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+  }, []);
 
   const isDev = typeof import.meta !== "undefined" && import.meta.env?.DEV === true;
   const { ok, shop, error, authMode, counts = {}, preview = {}, rows: rawRows = [], debug = {} } = loaderData;
@@ -782,93 +804,156 @@ export default function Index() {
       )}
 
       <s-section heading="Margin table">
-        <s-stack direction="block" gap="base">
-          <s-stack direction="inline" gap="base" blockAlignment="center">
-            <label>
-              <s-text>Fee %</s-text>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step={0.1}
-                value={feePercent}
-                onChange={(e) => setFeePercent(Number(e.target.value) || 0)}
-                style={{ marginLeft: 8, width: 64 }}
-                aria-label="Global fee percentage"
-              />
-            </label>
-          </s-stack>
-
-          {!ok && (
-            <s-banner tone="critical" title="Error">
-              {error?.message ?? "Failed to load data."}
-              {error?.hint ? ` ${error.hint}` : ""}
-            </s-banner>
+        <Page title="Margin engine" backAction={{ content: "Home", url: "/app" }}>
+          {navigation.state === "loading" && (
+            <SkeletonPage>
+              <Card>
+                <Card.Section>
+                  <SkeletonBodyText lines={3} />
+                  <SkeletonDisplayText size="small" />
+                </Card.Section>
+              </Card>
+            </SkeletonPage>
           )}
 
-          {zeroOrders && (
-            <s-paragraph>No orders found in this store (last 30 days).</s-paragraph>
-          )}
+          {navigation.state !== "loading" && (
+            <>
+              <Card>
+                <div style={{ padding: "16px", display: "flex", alignItems: "center", gap: 16 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>Fee %</span>
+                    <TextField
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={String(feePercent)}
+                      onChange={(v) => setFeePercent(Number(v) || 0)}
+                      autoComplete="off"
+                      label=""
+                      labelHidden
+                    />
+                  </label>
+                </div>
+              </Card>
 
-          {hasRows && (
-            <s-box borderWidth="base" borderRadius="large" background="surface">
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    {columns.map((col) => (
-                      <th
-                        key={col.id}
-                        style={{
-                          textAlign: col.align ?? "left",
-                          padding: "8px 12px",
-                          fontWeight: 500,
-                        }}
-                        scope="col"
+              {!ok && (
+                <div style={{ marginTop: 16 }}>
+                  <Banner tone="critical" title="Error" onDismiss={() => {}}>
+                    {error?.message ?? "Failed to load data."}
+                    {error?.hint ? ` ${error.hint}` : ""}
+                  </Banner>
+                </div>
+              )}
+
+              {ok && zeroOrders && (
+                <Card>
+                  <Card.Section>
+                    <p>No orders found in this store (last 30 days).</p>
+                  </Card.Section>
+                </Card>
+              )}
+
+              {hasRows && (
+                <Card padding="0">
+                  <IndexTable
+                    resourceName={{ singular: "SKU", plural: "SKUs" }}
+                    itemCount={sortedRows.length}
+                    headings={[
+                      { title: "SKU" },
+                      { title: "Title" },
+                      { title: "Qty", alignment: "end" },
+                      { title: "Orders", alignment: "end" },
+                      {
+                        title: "Revenue",
+                        alignment: "end",
+                        sortable: true,
+                        onSort: () => toggleSort("revenue"),
+                      },
+                      { title: "COGS/unit", alignment: "end" },
+                      { title: "Fees", alignment: "end" },
+                      {
+                        title: "Net Profit",
+                        alignment: "end",
+                        sortable: true,
+                        onSort: () => toggleSort("netProfit"),
+                      },
+                      {
+                        title: "Margin %",
+                        alignment: "end",
+                        sortable: true,
+                        onSort: () => toggleSort("marginPct"),
+                      },
+                    ]}
+                    selectable={false}
+                    loading={false}
+                  >
+                    {sortedRows.map((row) => (
+                      <IndexTable.Row
+                        key={row.id}
+                        id={row.id}
+                        tone={row._netProfit < 0 ? "critical" : row._marginPct < WARN_MARGIN_PCT ? "warning" : undefined}
                       >
-                        {col.header}
-                      </th>
+                        <IndexTable.Cell>{row.sku}</IndexTable.Cell>
+                        <IndexTable.Cell>{row.title}</IndexTable.Cell>
+                        <IndexTable.Cell>{row.quantity}</IndexTable.Cell>
+                        <IndexTable.Cell>{row.orderCount}</IndexTable.Cell>
+                        <IndexTable.Cell>{row.revenueFormatted}</IndexTable.Cell>
+                        <IndexTable.Cell>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <TextField
+                              type="number"
+                              min={0}
+                              step={0.01}
+                              value={cogsBySku[row.sku] === 0 ? "0" : (cogsBySku[row.sku] ?? "")}
+                              onChange={(v) => updateCogs(row.sku, v)}
+                              onBlur={() => handleSaveCogs(row, cogsBySku[row.sku] ?? 0)}
+                              disabled={row.isSaving}
+                              autoComplete="off"
+                              label=""
+                              labelHidden
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveCogs(row, cogsBySku[row.sku] ?? 0)}
+                              disabled={row.isSaving}
+                              style={{ fontSize: 12, padding: "4px 8px" }}
+                            >
+                              {row.isSaving ? "Saving…" : "Save"}
+                            </button>
+                            {row.savedAt && <Badge tone="success">Saved</Badge>}
+                            {row.rowError && (
+                              <span style={{ color: "var(--p-color-text-critical)", fontSize: 12 }}>{row.rowError}</span>
+                            )}
+                          </div>
+                        </IndexTable.Cell>
+                        <IndexTable.Cell>{row.feesFormatted}</IndexTable.Cell>
+                        <IndexTable.Cell>
+                          <span style={{ marginRight: 8 }}>{row.netProfitFormatted}</span>
+                          {row._netProfit < 0 && <Badge tone="critical">Loss</Badge>}
+                        </IndexTable.Cell>
+                        <IndexTable.Cell>
+                          <span style={{ marginRight: 8 }}>{row.marginPercentFormatted}</span>
+                          {row._marginPct >= 0 && row._marginPct < WARN_MARGIN_PCT && (
+                            <Badge tone="warning">Low margin</Badge>
+                          )}
+                        </IndexTable.Cell>
+                      </IndexTable.Row>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={
-                        row._marginPercent < 0
-                          ? "margin-negative"
-                          : row._marginPercent < WARN_MARGIN_PERCENT
-                            ? "margin-warning"
-                            : ""
-                      }
-                      style={{
-                        backgroundColor:
-                          row._marginPercent < 0
-                            ? "rgba(214, 44, 13, 0.08)"
-                            : row._marginPercent < WARN_MARGIN_PERCENT
-                              ? "rgba(185, 137, 0, 0.08)"
-                              : undefined,
-                        borderTop: "1px solid var(--p-color-border-subdued, #e1e3e5)",
-                      }}
-                    >
-                      {columns.map((col) => (
-                        <td
-                          key={col.id}
-                          style={{
-                            textAlign: col.align ?? "left",
-                            padding: "8px 12px",
-                          }}
-                        >
-                          {row[col.id]}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </s-box>
+                  </IndexTable>
+                </Card>
+              )}
+            </>
           )}
-        </s-stack>
+
+          {toastError && (
+            <Toast
+              content={toastError}
+              onDismiss={() => setToastError(null)}
+              error
+            />
+          )}
+        </Page>
       </s-section>
     </s-page>
   );
