@@ -81,6 +81,8 @@ For more information on the Shopify Dev MCP please read [the documentation](http
 
 ## Deployment
 
+**robots.txt:** The app serves `GET /robots.txt` (200, text/plain) to reduce 404 log noise (e.g. on Railway). Verify with: `curl -I https://app.eore.ai/robots.txt`.
+
 ### Application Storage
 
 This template uses [Prisma](https://www.prisma.io/) to store session data, by default using an [SQLite](https://www.sqlite.org/index.html) database.
