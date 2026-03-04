@@ -97,3 +97,26 @@ model SkuCost {
   @@index([shop])
   @@index([sku])
 }
+
+// Variant-level COGS (persistent, per shop). Unique by (shop_id, variant_id).
+model Cogs {
+  id          String   @id @default(cuid())
+  shopId      String
+  variantId   String
+  sku         String?
+  cogsPerUnit Float
+  currency    String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, variantId])
+  @@index([shopId])
+}
+
+// Shop-level fee settings (one row per shop).
+model ShopFeeSettings {
+  shopId           String   @unique
+  shopifyFeePct    Float    @default(0)
+  gatewayFeePct    Float    @default(0)
+  shippingCostPct  Float    @default(0)
+  updatedAt        DateTime @updatedAt
+}
