@@ -3,7 +3,8 @@ import { useLoaderData, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { getCogsMap } from "../services/shop-data.server";
+import { getCogsMap, getShopSettings } from "../services/shop-data.server";
+import { computeRowMargin } from "../lib/margin";
 
 const ORDERS_QUERY = `#graphql
   query OrdersWithLineItems($query: String) {
@@ -194,6 +195,8 @@ async function fetchOrdersWithCustomToken(shopDomain, accessToken, query) {
   return { data, errors, status, graphqlError };
 }
 
+const DEFAULT_FEE_SETTINGS = { shopifyFeePct: 0, gatewayFeePct: 0, shippingCostPct: 0 };
+
 function makeDebug(opts) {
   return {
     authMode: opts.authMode ?? "session",
@@ -349,6 +352,7 @@ export const loader = async ({ request }) => {
               preview: {},
               rows: [],
               savedCogsBySku: {},
+              shopFeeSettings: DEFAULT_FEE_SETTINGS,
               debug: { ...makeDebug({
                 authMode: "blocked",
                 hasShopDomain,
@@ -363,6 +367,7 @@ export const loader = async ({ request }) => {
           const agg = aggregateOrdersToRows(ordersEdges);
           const { rowsWithCogs, savedCogsBySku } = await mergeSavedCogsIntoRows(shopDomain, agg.rows);
           const debugDb = await getDebugDb(shopDomain);
+          const shopFeeSettings = (await getShopSettings(shopDomain)) ?? DEFAULT_FEE_SETTINGS;
           return {
             ok: true,
             shop: shopDomain,
@@ -378,6 +383,7 @@ export const loader = async ({ request }) => {
             },
             rows: rowsWithCogs,
             savedCogsBySku,
+            shopFeeSettings,
             debug: { ...makeDebug({
               authMode: "token-fallback",
               hasShopDomain,
@@ -397,6 +403,7 @@ export const loader = async ({ request }) => {
           preview: {},
           rows: [],
           savedCogsBySku: {},
+          shopFeeSettings: DEFAULT_FEE_SETTINGS,
           debug: { ...makeDebug({
             authMode: "blocked",
             hasShopDomain,
@@ -419,6 +426,7 @@ export const loader = async ({ request }) => {
         preview: {},
         rows: [],
         savedCogsBySku: {},
+        shopFeeSettings: DEFAULT_FEE_SETTINGS,
         debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDb },
       };
     }
@@ -427,6 +435,7 @@ export const loader = async ({ request }) => {
     const agg = aggregateOrdersToRows(ordersEdges);
     const { rowsWithCogs, savedCogsBySku } = await mergeSavedCogsIntoRows(sessionShop, agg.rows);
     const debugDb = await getDebugDb(sessionShop);
+    const shopFeeSettings = (await getShopSettings(sessionShop)) ?? DEFAULT_FEE_SETTINGS;
     return {
       ok: true,
       shop: sessionShop,
@@ -442,6 +451,7 @@ export const loader = async ({ request }) => {
       },
       rows: rowsWithCogs,
       savedCogsBySku,
+      shopFeeSettings,
       debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDb },
     };
   } catch (e) {
@@ -501,6 +511,7 @@ export const loader = async ({ request }) => {
           preview: {},
           rows: [],
           savedCogsBySku: {},
+          shopFeeSettings: DEFAULT_FEE_SETTINGS,
           debug: { ...makeDebug({
             authMode: "blocked",
             hasShopDomain,
@@ -520,6 +531,7 @@ export const loader = async ({ request }) => {
         preview: {},
         rows: [],
         savedCogsBySku: {},
+        shopFeeSettings: DEFAULT_FEE_SETTINGS,
         debug: { ...makeDebug({
           authMode: "blocked",
           hasShopDomain,
@@ -528,7 +540,7 @@ export const loader = async ({ request }) => {
           tokenHttpStatus: null,
           tokenGraphqlError: null,
         }), db: debugDbCatch2 },
-      };
+        };
     }
     const debugDbCatch3 = await getDebugDb(sessionShop ?? null);
     return {
@@ -542,6 +554,7 @@ export const loader = async ({ request }) => {
       preview: {},
       rows: [],
       savedCogsBySku: {},
+      shopFeeSettings: DEFAULT_FEE_SETTINGS,
       debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDbCatch3 },
     };
   }
@@ -549,9 +562,18 @@ export const loader = async ({ request }) => {
 
 const WARN_MARGIN_PERCENT = 10;
 
+function getDefaultFeePct(shopFeeSettings) {
+  if (!shopFeeSettings || typeof shopFeeSettings !== "object") return 3;
+  const a = Number(shopFeeSettings.shopifyFeePct) || 0;
+  const b = Number(shopFeeSettings.gatewayFeePct) || 0;
+  const c = Number(shopFeeSettings.shippingCostPct) || 0;
+  const sum = a + b + c;
+  return sum > 0 ? sum : 3;
+}
+
 export default function Index() {
   const loaderData = useLoaderData?.() ?? {};
-  const [feePercent, setFeePercent] = useState(3);
+  const [feePercent, setFeePercent] = useState(() => getDefaultFeePct(loaderData.shopFeeSettings));
   const [cogsBySku, setCogsBySku] = useState(() => loaderData.savedCogsBySku ?? {});
   const [lastUpdated] = useState(() => new Date().toISOString());
   const [savedSkuAt, setSavedSkuAt] = useState({});
@@ -590,15 +612,17 @@ export default function Index() {
 
   const tableRows = useMemo(() => {
     const rows = loaderData.rows ?? [];
-    const feePct = Number(feePercent) || 0;
+    const totalFeePct = Number(feePercent) || 0;
     return rows.map((r) => {
       const revenue = Number(r.revenue) || 0;
       const qty = Number(r.quantity) || 0;
-      const cogs = cogsBySku[r.sku] ?? 0;
-      const fees = (revenue * feePct) / 100;
-      const cogsTotal = cogs * qty;
-      const netProfit = revenue - fees - cogsTotal;
-      const marginPercent = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+      const cogsPerUnit = cogsBySku[r.sku] ?? 0;
+      const { cogsTotal, fees, netProfit, marginPct } = computeRowMargin(
+        revenue,
+        qty,
+        cogsPerUnit,
+        totalFeePct,
+      );
       const isSaving = fetcher.state !== "idle" && lastSubmitSkuRef.current === r.sku;
       const savedAt = savedSkuAt[r.sku];
       const rowError = errorBySku[r.sku];
@@ -635,8 +659,8 @@ export default function Index() {
         ),
         fees: fees.toFixed(2),
         netProfit: netProfit.toFixed(2),
-        marginPercent: marginPercent.toFixed(1) + "%",
-        _marginPercent: marginPercent,
+        marginPercent: marginPct.toFixed(1) + "%",
+        _marginPercent: marginPct,
       };
     });
   }, [
