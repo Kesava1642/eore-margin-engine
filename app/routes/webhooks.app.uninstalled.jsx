@@ -8,6 +8,7 @@ import prisma from "../db.server";
 import { webhookLog } from "../services/webhooks.server";
 
 export const action = async ({ request }) => {
+  const webhookId = request.headers.get("X-Shopify-Webhook-Id") ?? undefined;
   let topic, shop, session;
   try {
     const result = await authenticate.webhook(request);
@@ -16,13 +17,15 @@ export const action = async ({ request }) => {
     session = result.session;
   } catch (err) {
     webhookLog("error", "app/uninstalled", request.headers.get("X-Shopify-Shop-Domain") ?? "unknown", "HMAC validation failed", {
+      webhookId,
+      result: "error",
       reason: err?.message,
     });
     return new Response(null, { status: 401 });
   }
 
   try {
-    webhookLog("info", topic, shop, "received");
+    webhookLog("info", topic, shop, "received", { webhookId, result: "success" });
 
     await prisma.webhookShop.upsert({
       where: { shopId: shop },
@@ -38,10 +41,10 @@ export const action = async ({ request }) => {
       await prisma.session.deleteMany({ where: { shop } });
     }
 
-    webhookLog("info", topic, shop, "success", { sessionsCleared: !!session });
+    webhookLog("info", topic, shop, "success", { webhookId, result: "success", sessionsCleared: !!session });
     return new Response(null, { status: 200 });
   } catch (err) {
-    webhookLog("error", topic, shop, "handler failed", { reason: err?.message });
+    webhookLog("error", topic, shop, "handler failed", { webhookId, result: "error", reason: err?.message });
     return new Response(null, { status: 500 });
   }
 };

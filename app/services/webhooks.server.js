@@ -7,13 +7,22 @@ import prisma from "../db.server";
 
 const LOG_PREFIX = "[EORE Webhook]";
 
+/**
+ * Log webhook event for Railway. Include topic, shop, webhookId (if available), and result.
+ * @param {string} level - "info" | "error"
+ * @param {string} topic - e.g. orders/create
+ * @param {string} shop - shop domain
+ * @param {string} message - short message
+ * @param {{ webhookId?: string, result?: "success" | "error", [k: string]: unknown }} meta - optional meta (result, webhookId, orderId, etc.)
+ */
 export function webhookLog(level, topic, shop, message, meta = {}) {
-  const payload = { topic, shop, message, ...meta };
-  const line = `${LOG_PREFIX} ${level} topic=${topic} shop=${shop} ${message}`;
+  const { webhookId, result, ...rest } = meta;
+  const out = { topic, shop, message, result: result ?? (level === "error" ? "error" : "success"), ...(webhookId != null ? { webhookId } : {}), ...rest };
+  const line = `${LOG_PREFIX} ${level} topic=${topic} shop=${shop}${webhookId != null ? ` webhookId=${webhookId}` : ""} result=${out.result} ${message}`;
   if (level === "error") {
-    console.error(line, meta);
+    console.error(line, rest);
   } else {
-    console.log(line, Object.keys(meta).length ? meta : "");
+    console.log(line, Object.keys(rest).length ? rest : "");
   }
 }
 

@@ -83,6 +83,34 @@ For more information on the Shopify Dev MCP please read [the documentation](http
 
 **robots.txt:** The app serves `GET /robots.txt` (200, text/plain) to reduce 404 log noise (e.g. on Railway). Verify with: `curl -I https://app.eore.ai/robots.txt`.
 
+### Production Release Checklist
+
+Do these steps for each production release so webhook sync and DB stay in sync:
+
+1. **Run Prisma migrate against the production DB (e.g. Railway)**  
+   Set `DATABASE_URL` to your production DB, then:
+   ```bash
+   npx prisma migrate deploy
+   ```
+   Or use your host’s run-command (e.g. Railway: one-off run or release command).
+
+2. **Deploy to Railway**  
+   Push to your deploy branch or trigger your pipeline so the new code and migrations are live.
+
+3. **Verify webhooks in Shopify Admin**  
+   In the store: **Settings → Notifications → Webhooks** (or **Settings → Apps and sales channels → [Your app] → Webhooks**). Confirm subscriptions exist for:
+   - `orders/create`
+   - `orders/updated`
+   - `products/update`
+   - `app/uninstalled`  
+   If they’re missing, redeploy the app (app-specific webhooks come from `shopify.app.toml` and sync on deploy).
+
+4. **Trigger events and verify logs + DB**  
+   - Create or update an order, update a product (see [EORE Margin Engine: Webhook sync verification](#eore-margin-engine-webhook-sync-verification) for how to trigger).  
+   - In Railway logs, filter by `[EORE Webhook]` and confirm `result=success` for the topic you triggered.  
+   - Call `GET /api/health/db` (in an authenticated admin session) and confirm `dbConnected: true` and all `tablesPresent` entries `true`.  
+   - Call `GET /api/debug/webhook-stats` (authenticated) and confirm counts increase for the current shop after the triggered events.
+
 ### Application Storage
 
 This template uses [Prisma](https://www.prisma.io/) to store session data, by default using an [SQLite](https://www.sqlite.org/index.html) database.
@@ -160,32 +188,37 @@ This only applies if your app is embedded, which it will be by default.
 
 The app registers these webhooks (see `shopify.app.toml`) and syncs data into `WebhookShop`, `WebhookOrder`, `WebhookLineItem`, `WebhookProduct`, `WebhookProductVariant`.
 
-**How to trigger each webhook (dev store):**
+**Where to check Shopify webhooks**  
+In the store: **Settings → Notifications → Webhooks** (or **Settings → Apps and sales channels → [Your app] → Webhooks**). You should see app-specific subscriptions for `orders/create`, `orders/updated`, `products/update`, `app/uninstalled` pointing at your app URL (e.g. `https://app.eore.ai/webhooks/...`).
 
-| Topic             | How to trigger                          |
-|-------------------|-----------------------------------------|
-| `orders/create`   | Create a new order in Shopify Admin (Orders → Create order). |
-| `orders/updated`  | Edit an existing order (e.g. add a note, update fulfillment). |
-| `products/update` | Edit a product (e.g. title or variant SKU) and save.         |
-| `app/uninstalled` | Uninstall the app from the dev store.   |
+**How to trigger each webhook**
 
-**Where to see logs (Railway):** Filter logs by `[EORE Webhook]` to see topic, shop, success/failure and reason.
+| Topic             | How to trigger                                                                 |
+|-------------------|-------------------------------------------------------------------------------|
+| `orders/create`   | Shopify Admin → **Orders → Create order** → add line items and create.        |
+| `orders/updated`  | Open an existing order → edit (e.g. add a note, update fulfillment) → save.  |
+| `products/update` | **Products** → open a product → edit title or variant SKU → **Save**.        |
+| `app/uninstalled` | **Settings → Apps and sales channels** → your app → **Uninstall**.           |
 
-**DB queries to confirm rows (SQLite/Prisma):**
+**What to look for in Railway logs**  
+Filter by `[EORE Webhook]`. Each line includes `topic`, `shop`, `webhookId` (if sent by Shopify), and `result=success` or `result=error`. On success you should see a line like:  
+`[EORE Webhook] info topic=orders/create shop=... result=success success` (and optional meta such as `orderId`, `lineItemCount`). On failure you’ll see `result=error` and a `reason`.
 
-```bash
-# After creating an order:
-npx prisma studio
-# Or: SELECT * FROM WebhookShop; SELECT * FROM WebhookOrder; SELECT * FROM WebhookLineItem;
+**How to confirm via API (authenticated admin session)**  
+- **GET /api/health/db** — Returns `shop`, `dbConnected: true/false`, and `tablesPresent` for WebhookShop, WebhookOrder, WebhookLineItem, WebhookProduct, WebhookProductVariant, Cogs, ShopFeeSettings. Use this to confirm the DB is reachable and migrations have created the required tables.  
+- **GET /api/debug/webhook-stats** — Returns row counts for the current shop for WebhookShop, WebhookOrder, WebhookLineItem, WebhookProduct, WebhookProductVariant. After creating an order you should see at least one WebhookShop, one WebhookOrder, and one or more WebhookLineItem for that shop. After updating a product, WebhookProduct and WebhookProductVariant counts should reflect the update.
 
-# After updating a product:
-# SELECT * FROM WebhookProduct; SELECT * FROM WebhookProductVariant;
+**Expected results**  
+- After creating an order: `WebhookOrder` and `WebhookLineItem` counts for that shop increase; logs show `[EORE Webhook] ... topic=orders/create ... result=success`.  
+- After updating a product: `WebhookProduct` and `WebhookProductVariant` for that shop are updated; logs show `topic=products/update ... result=success`.  
+- After uninstall: `WebhookShop.uninstalledAt` is set for that shop; sessions for that shop are cleared.
 
-# After uninstall:
-# WebhookShop.uninstalledAt should be set for that shop.
-```
+**Common failure causes**  
+- **401 / HMAC validation failed** — Request not signed with your app’s secret, or wrong secret (e.g. admin-created webhooks instead of app-specific). Use app-specific webhooks from `shopify.app.toml` and redeploy.  
+- **Missing tables / 500 in handler** — Migrations not applied. Run `npx prisma migrate deploy` against the same `DATABASE_URL` the app uses (see [Production Release Checklist](#production-release-checklist)).  
+- **No logs / no rows** — Subscriptions not registered or URL wrong. Confirm webhooks in Shopify Admin (see above) and that the app URL (e.g. `https://app.eore.ai`) is correct and reachable from Shopify.
 
-Handlers validate `X-Shopify-Hmac-Sha256`; invalid requests return 401. All upserts are idempotent (same webhook delivered twice does not duplicate rows). Ensure the webhook sync migration has been applied (`npm run db:migrate` or `npx prisma migrate deploy`) so `WebhookShop`, `WebhookOrder`, `WebhookLineItem`, `WebhookProduct`, `WebhookProductVariant` tables exist.
+Handlers validate `X-Shopify-Hmac-Sha256`; invalid requests return 401. All upserts are idempotent (same webhook delivered twice does not duplicate rows). Ensure the webhook sync migration has been applied (`npm run db:migrate` or `npx prisma migrate deploy`) so the webhook tables exist.
 
 ### Webhooks: shop-specific webhook subscriptions aren't updated
 

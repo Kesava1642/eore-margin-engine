@@ -7,6 +7,7 @@ import prisma from "../db.server";
 import { ensureWebhookShop, toShopifyId, webhookLog } from "../services/webhooks.server";
 
 export const action = async ({ request }) => {
+  const webhookId = request.headers.get("X-Shopify-Webhook-Id") ?? undefined;
   let topic, shop, payload;
   try {
     const result = await authenticate.webhook(request);
@@ -15,6 +16,8 @@ export const action = async ({ request }) => {
     payload = result.payload;
   } catch (err) {
     webhookLog("error", "products/update", request.headers.get("X-Shopify-Shop-Domain") ?? "unknown", "HMAC validation failed", {
+      webhookId,
+      result: "error",
       reason: err?.message,
     });
     return new Response(null, { status: 401 });
@@ -24,7 +27,7 @@ export const action = async ({ request }) => {
     await ensureWebhookShop(shop);
     const productId = toShopifyId(payload?.id);
     if (!productId) {
-      webhookLog("error", topic, shop, "missing product id in payload");
+      webhookLog("error", topic, shop, "missing product id in payload", { webhookId, result: "error" });
       return new Response(null, { status: 400 });
     }
 
@@ -76,10 +79,10 @@ export const action = async ({ request }) => {
       });
     }
 
-    webhookLog("info", topic, shop, "success", { productId, variantCount: variants.length });
+    webhookLog("info", topic, shop, "success", { webhookId, result: "success", productId, variantCount: variants.length });
     return new Response(null, { status: 200 });
   } catch (err) {
-    webhookLog("error", topic, shop, "handler failed", { reason: err?.message });
+    webhookLog("error", topic, shop, "handler failed", { webhookId, result: "error", reason: err?.message });
     return new Response(null, { status: 500 });
   }
 };
