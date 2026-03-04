@@ -7,6 +7,21 @@ import { addDocumentResponseHeaders } from "./shopify.server";
 
 export const streamTimeout = 5000;
 
+// Allow app to be embedded in Shopify Admin iframe. We do not set X-Frame-Options so that
+// the browser does not block embedding; we rely on CSP frame-ancestors to restrict which
+// origins can embed the app (Shopify Admin and *.myshopify.com only).
+const SHOPIFY_FRAME_ANCESTORS = "frame-ancestors https://admin.shopify.com https://*.myshopify.com";
+
+function applyEmbeddingHeaders(responseHeaders) {
+  responseHeaders.delete("X-Frame-Options");
+  const existing = responseHeaders.get("Content-Security-Policy") || "";
+  const withoutFrameAncestors = existing.replace(/frame-ancestors[^;]*;?/gi, "").trim();
+  const csp = withoutFrameAncestors
+    ? `${withoutFrameAncestors}; ${SHOPIFY_FRAME_ANCESTORS};`
+    : `${SHOPIFY_FRAME_ANCESTORS};`;
+  responseHeaders.set("Content-Security-Policy", csp);
+}
+
 export default async function handleRequest(
   request,
   responseStatusCode,
@@ -14,6 +29,7 @@ export default async function handleRequest(
   reactRouterContext,
 ) {
   addDocumentResponseHeaders(request, responseHeaders);
+  applyEmbeddingHeaders(responseHeaders);
   const userAgent = request.headers.get("user-agent");
   const callbackName = isbot(userAgent ?? "") ? "onAllReady" : "onShellReady";
 
