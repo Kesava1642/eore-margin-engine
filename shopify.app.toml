@@ -2,7 +2,7 @@
 
 client_id = "1760b4afe20b8155c508792cd99177c6"
 name = "EORE Margin Engine"
-application_url = "http://localhost:3000"
+application_url = "https://app.eore.ai"
 embedded = true
 
 [build]
@@ -19,7 +19,7 @@ optional_scopes = [ "read_analytics" ]
 use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ "http://localhost:3000/api/auth/callback" ]
+redirect_urls = [ "https://app.eore.ai/api/auth/callback" ]
 
 [product.metafields.app.demo_info]
 type = "single_line_text_field"
