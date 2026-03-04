@@ -120,3 +120,90 @@ model ShopFeeSettings {
   shippingCostPct  Float    @default(0)
   updatedAt        DateTime @updatedAt
 }
+
+// Webhook-synced shop record (idempotent, track uninstall).
+model WebhookShop {
+  id             String    @id @default(cuid())
+  shopId         String    @unique // shop domain, e.g. store.myshopify.com
+  uninstalledAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  orders         WebhookOrder[]
+  lineItems      WebhookLineItem[]
+  products       WebhookProduct[]
+  variants       WebhookProductVariant[]
+}
+
+// Webhook-synced order (idempotent by shop_id + order_id).
+model WebhookOrder {
+  id              String   @id @default(cuid())
+  shopId          String
+  orderId         String   // Shopify order ID (GID or numeric string)
+  totalPrice      String?
+  subtotalPrice   String?
+  totalTax        String?
+  currency        String?
+  financialStatus String?
+  createdAt       DateTime? // order created_at from Shopify
+  updatedAt      DateTime  @updatedAt
+  shop            WebhookShop @relation(fields: [shopId], references: [shopId], onDelete: Cascade)
+  lineItems       WebhookLineItem[]
+
+  @@unique([shopId, orderId])
+  @@index([shopId])
+}
+
+// Webhook-synced line item (idempotent by shop_id + line_item_id).
+model WebhookLineItem {
+  id             String   @id @default(cuid())
+  shopId         String
+  orderId        String
+  lineItemId     String
+  variantId      String?
+  productId      String?
+  sku            String?
+  title          String?
+  quantity       Int      @default(0)
+  price          String?
+  total          String?
+  shop           WebhookShop @relation(fields: [shopId], references: [shopId], onDelete: Cascade)
+  order          WebhookOrder @relation(fields: [shopId, orderId], references: [shopId, orderId], onDelete: Cascade)
+
+  @@unique([shopId, lineItemId])
+  @@index([shopId])
+  @@index([shopId, orderId])
+}
+
+// Webhook-synced product (idempotent by shop_id + product_id).
+model WebhookProduct {
+  id         String   @id @default(cuid())
+  shopId     String
+  productId  String
+  title      String?
+  status     String?
+  updatedAt  DateTime @updatedAt
+  shop       WebhookShop @relation(fields: [shopId], references: [shopId], onDelete: Cascade)
+  variants   WebhookProductVariant[]
+
+  @@unique([shopId, productId])
+  @@index([shopId])
+}
+
+// Webhook-synced variant (idempotent by shop_id + variant_id).
+model WebhookProductVariant {
+  id         String   @id @default(cuid())
+  shopId     String
+  variantId  String
+  productId  String
+  sku        String?
+  title      String?
+  price      String?
+  status     String?
+  updatedAt  DateTime @updatedAt
+  shop       WebhookShop @relation(fields: [shopId], references: [shopId], onDelete: Cascade)
+  product    WebhookProduct @relation(fields: [shopId, productId], references: [shopId, productId], onDelete: Cascade)
+
+  @@unique([shopId, variantId])
+  @@index([shopId])
+  @@index([shopId, productId])
+}

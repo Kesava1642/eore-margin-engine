@@ -156,6 +156,37 @@ Embedded apps must maintain the user session, which can be tricky inside an iFra
 
 This only applies if your app is embedded, which it will be by default.
 
+### EORE Margin Engine: Webhook sync verification
+
+The app registers these webhooks (see `shopify.app.toml`) and syncs data into `WebhookShop`, `WebhookOrder`, `WebhookLineItem`, `WebhookProduct`, `WebhookProductVariant`.
+
+**How to trigger each webhook (dev store):**
+
+| Topic             | How to trigger                          |
+|-------------------|-----------------------------------------|
+| `orders/create`   | Create a new order in Shopify Admin (Orders → Create order). |
+| `orders/updated`  | Edit an existing order (e.g. add a note, update fulfillment). |
+| `products/update` | Edit a product (e.g. title or variant SKU) and save.         |
+| `app/uninstalled` | Uninstall the app from the dev store.   |
+
+**Where to see logs (Railway):** Filter logs by `[EORE Webhook]` to see topic, shop, success/failure and reason.
+
+**DB queries to confirm rows (SQLite/Prisma):**
+
+```bash
+# After creating an order:
+npx prisma studio
+# Or: SELECT * FROM WebhookShop; SELECT * FROM WebhookOrder; SELECT * FROM WebhookLineItem;
+
+# After updating a product:
+# SELECT * FROM WebhookProduct; SELECT * FROM WebhookProductVariant;
+
+# After uninstall:
+# WebhookShop.uninstalledAt should be set for that shop.
+```
+
+Handlers validate `X-Shopify-Hmac-Sha256`; invalid requests return 401. All upserts are idempotent (same webhook delivered twice does not duplicate rows). Ensure the webhook sync migration has been applied (`npm run db:migrate` or `npx prisma migrate deploy`) so `WebhookShop`, `WebhookOrder`, `WebhookLineItem`, `WebhookProduct`, `WebhookProductVariant` tables exist.
+
 ### Webhooks: shop-specific webhook subscriptions aren't updated
 
 If you are registering webhooks in the `afterAuth` hook, using `shopify.registerWebhooks`, you may find that your subscriptions aren't being updated.
