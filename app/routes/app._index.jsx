@@ -3,6 +3,7 @@ import { useLoaderData, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { getCogsMap } from "../services/shop-data.server";
 
 const ORDERS_QUERY = `#graphql
   query OrdersWithLineItems($query: String) {
@@ -60,15 +61,15 @@ function normalizedTitle(title) {
 function getStableKeyAndSku(line, orderId, index) {
   const title = line.title || "Untitled";
   const normTitle = normalizedTitle(title);
+  const variantId = line.variant?.id ?? null;
 
   const variantSku = line.variant?.sku?.trim();
   if (variantSku) {
-    return { key: `sku:${variantSku}`, displaySku: variantSku };
+    return { key: `sku:${variantSku}`, displaySku: variantSku, variantId };
   }
 
-  const variantId = line.variant?.id;
   if (variantId) {
-    return { key: `variant:${variantId}`, displaySku: `VAR-${last6(variantId)}` };
+    return { key: `variant:${variantId}`, displaySku: `VAR-${last6(variantId)}`, variantId };
   }
 
   const productId = line.product?.id;
@@ -76,17 +77,19 @@ function getStableKeyAndSku(line, orderId, index) {
     return {
       key: `product:${productId}:${normTitle}`,
       displaySku: `PROD-${last6(productId)}`,
+      variantId: null,
     };
   }
 
   const lineItemId = line.id;
   if (lineItemId) {
-    return { key: `line:${lineItemId}`, displaySku: `LINE-${last6(lineItemId)}` };
+    return { key: `line:${lineItemId}`, displaySku: `LINE-${last6(lineItemId)}`, variantId: null };
   }
 
   return {
     key: `fallback:${orderId}:${normTitle}:${index}`,
     displaySku: `UNK-${index + 1}`,
+    variantId: null,
   };
 }
 
@@ -111,7 +114,7 @@ function aggregateOrdersToRows(ordersEdges) {
     let lineIndex = 0;
     for (const { node: line } of lineEdges) {
       lineItemsParsed += 1;
-      const { key, displaySku } = getStableKeyAndSku(line, order.id, lineIndex);
+      const { key, displaySku, variantId } = getStableKeyAndSku(line, order.id, lineIndex);
       lineIndex += 1;
       const title = line.title || "Untitled";
       const qty = Math.max(0, Number(line.quantity) || 0);
@@ -134,6 +137,7 @@ function aggregateOrdersToRows(ordersEdges) {
           quantity: qty,
           revenue,
           orderIds: new Set([order.id]),
+          variantId: variantId ?? null,
         });
       }
     }
@@ -145,6 +149,7 @@ function aggregateOrdersToRows(ordersEdges) {
     quantity: r.quantity,
     orderCount: r.orderIds.size,
     revenue: Math.round(r.revenue * 100) / 100,
+    variantId: r.variantId ?? undefined,
   }));
 
   return {
@@ -212,6 +217,21 @@ async function getSavedCogsBySku(shop) {
   } catch {
     return {};
   }
+}
+
+/** Load saved COGS by variantId from Cogs table and merge into rows; returns merged rows + savedCogsBySku for UI initial state. */
+async function mergeSavedCogsIntoRows(shopId, rows) {
+  if (!shopId || !Array.isArray(rows)) return { rowsWithCogs: rows ?? [], savedCogsBySku: {} };
+  const variantIds = rows.map((r) => r.variantId).filter(Boolean);
+  const cogsMap = await getCogsMap(shopId, variantIds);
+  const rowsWithCogs = rows.map((r) => ({
+    ...r,
+    cogsPerUnit: r.variantId ? (cogsMap.get(r.variantId) ?? 0) : 0,
+  }));
+  const savedCogsBySku = Object.fromEntries(
+    rowsWithCogs.map((r) => [r.sku, r.cogsPerUnit]),
+  );
+  return { rowsWithCogs, savedCogsBySku };
 }
 
 async function getLastSkuCostRows(shop) {
@@ -341,7 +361,7 @@ export const loader = async ({ request }) => {
           }
           const ordersEdges = result.data?.orders?.edges ?? [];
           const agg = aggregateOrdersToRows(ordersEdges);
-          const savedCogsBySku = await getSavedCogsBySku(shopDomain);
+          const { rowsWithCogs, savedCogsBySku } = await mergeSavedCogsIntoRows(shopDomain, agg.rows);
           const debugDb = await getDebugDb(shopDomain);
           return {
             ok: true,
@@ -356,7 +376,7 @@ export const loader = async ({ request }) => {
               firstOrderId: agg.firstOrderId,
               firstLineItem: agg.firstLineItem,
             },
-            rows: agg.rows,
+            rows: rowsWithCogs,
             savedCogsBySku,
             debug: { ...makeDebug({
               authMode: "token-fallback",
@@ -405,7 +425,7 @@ export const loader = async ({ request }) => {
 
     const ordersEdges = json.data?.orders?.edges ?? [];
     const agg = aggregateOrdersToRows(ordersEdges);
-    const savedCogsBySku = await getSavedCogsBySku(sessionShop);
+    const { rowsWithCogs, savedCogsBySku } = await mergeSavedCogsIntoRows(sessionShop, agg.rows);
     const debugDb = await getDebugDb(sessionShop);
     return {
       ok: true,
@@ -420,7 +440,7 @@ export const loader = async ({ request }) => {
         firstOrderId: agg.firstOrderId,
         firstLineItem: agg.firstLineItem,
       },
-      rows: agg.rows,
+      rows: rowsWithCogs,
       savedCogsBySku,
       debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDb },
     };
@@ -441,7 +461,7 @@ export const loader = async ({ request }) => {
           if (!result.errors?.length) {
             const ordersEdges = result.data?.orders?.edges ?? [];
             const agg = aggregateOrdersToRows(ordersEdges);
-            const savedCogsBySku = await getSavedCogsBySku(shopDomain);
+            const { rowsWithCogs, savedCogsBySku } = await mergeSavedCogsIntoRows(shopDomain, agg.rows);
             const debugDb = await getDebugDb(shopDomain);
             return {
               ok: true,
@@ -456,7 +476,7 @@ export const loader = async ({ request }) => {
                 firstOrderId: agg.firstOrderId,
                 firstLineItem: agg.firstLineItem,
               },
-              rows: agg.rows,
+              rows: rowsWithCogs,
               savedCogsBySku,
               debug: { ...makeDebug({
                 authMode: "token-fallback",
