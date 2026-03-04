@@ -9,8 +9,9 @@ export const streamTimeout = 5000;
 
 // Allow app to be embedded in Shopify Admin iframe. We do not set X-Frame-Options so that
 // the browser does not block embedding; we rely on CSP frame-ancestors to restrict which
-// origins can embed the app (Shopify Admin and *.myshopify.com only).
-const SHOPIFY_FRAME_ANCESTORS = "frame-ancestors https://admin.shopify.com https://*.myshopify.com";
+// origins can embed the app. *.shopify.com is included for Shopify Admin embedding host.
+const SHOPIFY_FRAME_ANCESTORS =
+  "frame-ancestors https://admin.shopify.com https://*.myshopify.com https://*.shopify.com";
 
 function applyEmbeddingHeaders(responseHeaders) {
   responseHeaders.delete("X-Frame-Options");
