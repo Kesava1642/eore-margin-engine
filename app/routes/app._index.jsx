@@ -13,10 +13,10 @@ import {
   Toast,
   Banner,
 } from "@shopify/polaris";
-import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
-import { getCogsMap, getShopSettings } from "../services/shop-data.server";
+import { boundary } from "@shopify/shopify-app-react-router/server";
 import { computeRowMargin } from "../lib/margin";
+
+export { loader, action } from "./app._index.loader.server";
 
 const DEFAULT_CURRENCY = "USD";
 const WARN_MARGIN_PCT = 10;
@@ -27,7 +27,8 @@ function formatCurrency(value, currency = DEFAULT_CURRENCY) {
   );
 }
 
-const ORDERS_QUERY = `#graphql
+// (ORDERS_QUERY and server helpers moved to app._index.loader.server.js)
+const _ORDERS_QUERY_PLACEHOLDER = `#graphql
   query OrdersWithLineItems($query: String) {
     orders(first: 100, query: $query) {
       edges {
