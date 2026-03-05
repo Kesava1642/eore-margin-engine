@@ -323,7 +323,9 @@ export const loader = async ({ request }) => {
       const { rowsWithCogs, savedCogsBySku } = await mergeSavedCogsIntoRows(sessionShop, dbAgg.rows);
       const shopFeeSettings = (await getShopSettings(sessionShop)) ?? DEFAULT_FEE_SETTINGS;
       const debugDb = await getDebugDb(sessionShop);
-      console.log(`[EORE] margin aggregation source=db rows=${dbAgg.rows.length} ms=${aggregationMs}`);
+      console.log(
+        `[EORE] margin aggregation shop=${sessionShop} source=db rows=${dbAgg.rows.length} ms=${aggregationMs}`,
+      );
       return {
         ok: true,
         shop: sessionShop,
@@ -337,7 +339,7 @@ export const loader = async ({ request }) => {
       };
     }
 
-    console.log(`[EORE] margin aggregation source=db rows=0 ms=${aggregationMs}`);
+    console.log(`[EORE] margin aggregation shop=${sessionShop} source=empty rows=0 ms=${aggregationMs}`);
     const hasShopDomain = Boolean(process.env.SHOPIFY_SHOP_DOMAIN && String(process.env.SHOPIFY_SHOP_DOMAIN).trim());
     const hasAdminToken = Boolean(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN && String(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN).trim());
     const missingEnvHint = `Missing env: SHOPIFY_SHOP_DOMAIN=${hasShopDomain ? "present" : "missing"}, SHOPIFY_ADMIN_ACCESS_TOKEN=${hasAdminToken ? "present" : "missing"}. Add them to .env (see docs/DEV_CUSTOM_APP_TOKEN.md) and restart dev.`;
