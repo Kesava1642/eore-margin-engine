@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useRef } from "react";
+import { useCallback, useMemo, useState, useRef, Component } from "react";
 import { useLoaderData, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
@@ -480,6 +480,38 @@ function getDefaultFeePct(shopFeeSettings) {
   return sum > 0 ? sum : 3;
 }
 
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  componentDidCatch(error, info) {
+    // Log full details to Railway logs
+    // info contains component stack
+    // eslint-disable-next-line no-console
+    console.error("[EORE UI ERROR]", error, info);
+    this.setState({ hasError: true, error });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 16 }}>
+          <h1>EORE UI Render Error</h1>
+          <p>{this.state.error?.message ?? "Unknown render error"}</p>
+          <p style={{ fontSize: 12, color: "#666" }}>
+            Check Railway logs for entries containing <code>[EORE UI ERROR]</code> to see the full stack trace.
+          </p>
+        </div>
+      );
+    }
+    // eslint-disable-next-line react/prop-types
+    return this.props.children;
+  }
+}
+
 export default function Index() {
   const loaderData = useLoaderData?.() ?? {};
   const [feePercent, setFeePercent] = useState(() => getDefaultFeePct(loaderData.shopFeeSettings));
@@ -675,9 +707,15 @@ export default function Index() {
   const emptyStateWebhook = ok && loaderData.emptyStateWebhook === true;
   const zeroOrders = ok && !emptyStateWebhook && (counts.ordersFetched ?? 0) === 0;
 
+  const safeRows = Array.isArray(sortedRows) ? sortedRows : [];
+  const aggregationSource = loaderData.aggregationSource ?? "unknown";
+  // eslint-disable-next-line no-console
+  console.log("[EORE UI] render start", { rows: safeRows.length, source: aggregationSource });
+
   return (
-    <s-page heading="Margin engine">
-      {isDev && (
+    <ErrorBoundary>
+      <s-page heading="Margin engine">
+        {isDev && (
         <s-section heading="Debug (dev only)">
           <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
             <s-stack direction="block" gap="tight">
@@ -994,7 +1032,8 @@ export default function Index() {
           )}
         </PolarisPage>
       </s-section>
-    </s-page>
+      </s-page>
+    </ErrorBoundary>
   );
 }
 
