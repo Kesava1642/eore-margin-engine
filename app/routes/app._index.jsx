@@ -506,6 +506,9 @@ export default function Index() {
         cogsPerUnit,
         totalFeePct,
       );
+      const isLossMaking = netProfit < 0;
+      const isLowMargin = revenue > 0 && marginPct < 10;
+      const isHighFees = revenue > 0 && revenue !== 0 && (fees / revenue) * 100 > 6;
       const isSaving = savingSku === r.sku;
       const savedAt = savedSkuAt[r.sku];
       const rowError = errorBySku[r.sku];
@@ -516,6 +519,9 @@ export default function Index() {
         _fees: fees,
         _netProfit: netProfit,
         _marginPct: marginPct,
+        isLossMaking,
+        isLowMargin,
+        isHighFees,
         revenueFormatted: formatCurrency(revenue, shopCurrency),
         feesFormatted: formatCurrency(fees, shopCurrency),
         netProfitFormatted: formatCurrency(netProfit, shopCurrency),
@@ -548,6 +554,67 @@ export default function Index() {
       return sortDir === "asc" ? d : -d;
     });
   }, [tableRows, sortKey, sortDir]);
+
+  const insights = useMemo(() => {
+    if (!tableRows.length) {
+      return {
+        totalRevenue: 0,
+        totalFees: 0,
+        totalNetProfit: 0,
+        avgMarginPct: 0,
+        lossCount: 0,
+        topLossSkus: [],
+        topLowMarginSkus: [],
+      };
+    }
+    let totalRevenue = 0;
+    let totalFees = 0;
+    let totalNetProfit = 0;
+    let lossCount = 0;
+    for (const row of tableRows) {
+      const rev = row._revenue ?? 0;
+      totalRevenue += rev;
+      totalFees += row._fees ?? 0;
+      totalNetProfit += row._netProfit ?? 0;
+      if (row._netProfit < 0) lossCount += 1;
+    }
+    const weightedMarginNumerator = tableRows.reduce(
+      (sum, row) => sum + (row._marginPct ?? 0) * (row._revenue ?? 0),
+      0,
+    );
+    const avgMarginPct =
+      totalRevenue > 0 ? weightedMarginNumerator / totalRevenue : 0;
+
+    const topLossSkus = [...tableRows]
+      .filter((r) => typeof r._netProfit === "number")
+      .sort((a, b) => (a._netProfit ?? 0) - (b._netProfit ?? 0))
+      .slice(0, 5)
+      .map((r) => ({
+        sku: r.sku,
+        netProfit: r._netProfit ?? 0,
+        marginPct: r._marginPct ?? 0,
+      }));
+
+    const topLowMarginSkus = [...tableRows]
+      .filter((r) => typeof r._marginPct === "number")
+      .sort((a, b) => (a._marginPct ?? 0) - (b._marginPct ?? 0))
+      .slice(0, 5)
+      .map((r) => ({
+        sku: r.sku,
+        netProfit: r._netProfit ?? 0,
+        marginPct: r._marginPct ?? 0,
+      }));
+
+    return {
+      totalRevenue,
+      totalFees,
+      totalNetProfit,
+      avgMarginPct,
+      lossCount,
+      topLossSkus,
+      topLowMarginSkus,
+    };
+  }, [tableRows]);
 
   const toggleSort = useCallback((key) => {
     setSortKey(key);
@@ -685,6 +752,67 @@ export default function Index() {
                 </div>
               </Card>
 
+              {hasRows && (
+                <Card>
+                  <Card.Section title="Insights">
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 12 }}>
+                      <div>
+                        <p><strong>Total revenue</strong></p>
+                        <p>{formatCurrency(insights.totalRevenue, shopCurrency)}</p>
+                      </div>
+                      <div>
+                        <p><strong>Total fees</strong></p>
+                        <p>{formatCurrency(insights.totalFees, shopCurrency)}</p>
+                      </div>
+                      <div>
+                        <p><strong>Total net profit</strong></p>
+                        <p>{formatCurrency(insights.totalNetProfit, shopCurrency)}</p>
+                      </div>
+                      <div>
+                        <p><strong>Avg margin %</strong></p>
+                        <p>{insights.avgMarginPct.toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <p><strong>Loss-making SKUs</strong></p>
+                        <p>{insights.lossCount}</p>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 32 }}>
+                      <div style={{ minWidth: 200 }}>
+                        <p><strong>Top 5 loss-making SKUs</strong></p>
+                        {insights.topLossSkus.length === 0 ? (
+                          <p style={{ color: "var(--p-color-text-subdued)" }}>None</p>
+                        ) : (
+                          <ul style={{ paddingLeft: 16, margin: 0 }}>
+                            {insights.topLossSkus.map((item) => (
+                              <li key={`loss-${item.sku}`}>
+                                {item.sku} · {formatCurrency(item.netProfit, shopCurrency)} ·{" "}
+                                {item.marginPct.toFixed(1)}%
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div style={{ minWidth: 200 }}>
+                        <p><strong>Top 5 lowest margin SKUs</strong></p>
+                        {insights.topLowMarginSkus.length === 0 ? (
+                          <p style={{ color: "var(--p-color-text-subdued)" }}>None</p>
+                        ) : (
+                          <ul style={{ paddingLeft: 16, margin: 0 }}>
+                            {insights.topLowMarginSkus.map((item) => (
+                              <li key={`lowmargin-${item.sku}`}>
+                                {item.sku} · {formatCurrency(item.netProfit, shopCurrency)} ·{" "}
+                                {item.marginPct.toFixed(1)}%
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  </Card.Section>
+                </Card>
+              )}
+
               {!ok && (
                 <div style={{ marginTop: 16 }}>
                   <Banner tone="critical" title="Error" onDismiss={() => {}}>
@@ -740,6 +868,10 @@ export default function Index() {
                         sortable: true,
                         onSort: () => toggleSort("marginPct"),
                       },
+                      {
+                        title: "Status",
+                        alignment: "end",
+                      },
                     ]}
                     selectable={false}
                     loading={false}
@@ -793,6 +925,13 @@ export default function Index() {
                           {row._marginPct >= 0 && row._marginPct < WARN_MARGIN_PCT && (
                             <Badge tone="warning">Low margin</Badge>
                           )}
+                        </IndexTable.Cell>
+                        <IndexTable.Cell>
+                          <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                            {row.isLossMaking && <Badge tone="critical">LOSS</Badge>}
+                            {row.isLowMargin && <Badge tone="warning">LOW MARGIN</Badge>}
+                            {row.isHighFees && <Badge tone="attention">HIGH FEES</Badge>}
+                          </div>
                         </IndexTable.Cell>
                       </IndexTable.Row>
                     ))}
