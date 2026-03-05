@@ -2,8 +2,8 @@
   "name": "eore-margin-engine",
   "private": true,
   "scripts": {
-    "postinstall": "prisma generate",
-    "prebuild": "prisma generate",
+    "postinstall": "node scripts/prisma-generate-if-schema.cjs",
+    "prebuild": "node scripts/prisma-generate-if-schema.cjs",
     "build": "react-router build",
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
