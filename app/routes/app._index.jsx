@@ -1,63 +1,7 @@
-import { useCallback, useMemo, useState, useRef, Component } from "react";
+import { useCallback, useMemo, useState, useRef } from "react";
 import { useLoaderData, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import {
-  IndexTable,
-  TextField,
-  Badge,
-  Page,
-  Card,
-  SkeletonPage,
-  SkeletonBodyText,
-  SkeletonDisplayText,
-  Toast,
-  Banner,
-} from "@shopify/polaris";
 import { computeRowMargin } from "../lib/margin";
-
-// Defensive wrappers: fall back to basic HTML if Polaris components are unavailable
-const PolarisBadge = Badge || (({ children }) => <span>{children}</span>);
-const PolarisCard = Card || (({ children, ...rest }) => <div {...rest}>{children}</div>);
-const PolarisPage = Page || (({ children, title }) => (
-  <div>
-    {title ? <h1>{title}</h1> : null}
-    {children}
-  </div>
-));
-const PolarisIndexTable =
-  IndexTable ||
-  (({ children }) => (
-    <div>
-      {children}
-    </div>
-  ));
-const PolarisTextField =
-  TextField ||
-  (({ value, onChange, type = "text", disabled }) => (
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange?.(e.target.value)}
-      disabled={disabled}
-    />
-  ));
-const PolarisSkeletonPage =
-  SkeletonPage ||
-  (({ children }) => (
-    <div>
-      {children}
-    </div>
-  ));
-const PolarisSkeletonBodyText = SkeletonBodyText || (() => null);
-const PolarisSkeletonDisplayText = SkeletonDisplayText || (() => null);
-const PolarisToast = Toast || (() => null);
-const PolarisBanner =
-  Banner ||
-  (({ children }) => (
-    <div>
-      {children}
-    </div>
-  ));
 
 const DEFAULT_CURRENCY = "USD";
 const WARN_MARGIN_PCT = 10;
@@ -478,38 +422,6 @@ function getDefaultFeePct(shopFeeSettings) {
   const c = Number(shopFeeSettings.shippingCostPct) || 0;
   const sum = a + b + c;
   return sum > 0 ? sum : 3;
-}
-
-class ErrorBoundary extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  // eslint-disable-next-line class-methods-use-this
-  componentDidCatch(error, info) {
-    // Log full details to Railway logs
-    // info contains component stack
-    // eslint-disable-next-line no-console
-    console.error("[EORE UI ERROR]", error, info);
-    this.setState({ hasError: true, error });
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: 16 }}>
-          <h1>EORE UI Render Error</h1>
-          <p>{this.state.error?.message ?? "Unknown render error"}</p>
-          <p style={{ fontSize: 12, color: "#666" }}>
-            Check Railway logs for entries containing <code>[EORE UI ERROR]</code> to see the full stack trace.
-          </p>
-        </div>
-      );
-    }
-    // eslint-disable-next-line react/prop-types
-    return this.props.children;
-  }
 }
 
 export default function Index() {
