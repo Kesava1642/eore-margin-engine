@@ -85,10 +85,10 @@ For more information on the Shopify Dev MCP please read [the documentation](http
 
 ### Production Release Checklist
 
-Do these steps for each production release so webhook sync and DB stay in sync:
+**Build:** The build must run `prisma generate` before the app build (this repo uses `postinstall` and `prebuild` so `npm run build` runs it automatically).  
+**Release/start:** Run `prisma migrate deploy` in your release or start command so the production DB schema is up to date.
 
-- **Build:** Must run `prisma generate` before the app build (this repo uses `postinstall` and `prebuild` so `npm install` and `npm run build` run it automatically).
-- **Release/start:** Must run `prisma migrate deploy` so the production DB schema is up to date (e.g. in Railway release or start command).
+Do these steps for each production release so webhook sync and DB stay in sync:
 
 1. **Run Prisma migrations and generate client for production DB (e.g. Railway Postgres)**  
    Point at the same DB the app uses (e.g. set `DATABASE_URL` to the Railway Postgres URL), then:

@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState, useRef, useEffect } from "react";
-import { useLoaderData, useFetcher, useNavigation } from "react-router";
+import { useCallback, useMemo, useState, useRef } from "react";
+import { useLoaderData, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   IndexTable,
@@ -13,10 +13,7 @@ import {
   Toast,
   Banner,
 } from "@shopify/polaris";
-import { boundary } from "@shopify/shopify-app-react-router/server";
 import { computeRowMargin } from "../lib/margin";
-
-export { loader, action } from "./app._index.loader.server";
 
 const DEFAULT_CURRENCY = "USD";
 const WARN_MARGIN_PCT = 10;
@@ -27,8 +24,7 @@ function formatCurrency(value, currency = DEFAULT_CURRENCY) {
   );
 }
 
-// (ORDERS_QUERY and server helpers moved to app._index.loader.server.js)
-const _ORDERS_QUERY_PLACEHOLDER = `#graphql
+const ORDERS_QUERY = `#graphql
   query OrdersWithLineItems($query: String) {
     orders(first: 100, query: $query) {
       edges {
@@ -85,44 +81,20 @@ function getStableKeyAndSku(line, orderId, index) {
   const title = line.title || "Untitled";
   const normTitle = normalizedTitle(title);
   const variantId = line.variant?.id ?? null;
-
   const variantSku = line.variant?.sku?.trim();
-  if (variantSku) {
-    return { key: `sku:${variantSku}`, displaySku: variantSku, variantId };
-  }
-
-  if (variantId) {
-    return { key: `variant:${variantId}`, displaySku: `VAR-${last6(variantId)}`, variantId };
-  }
-
+  if (variantSku) return { key: `sku:${variantSku}`, displaySku: variantSku, variantId };
+  if (variantId) return { key: `variant:${variantId}`, displaySku: `VAR-${last6(variantId)}`, variantId };
   const productId = line.product?.id;
-  if (productId) {
-    return {
-      key: `product:${productId}:${normTitle}`,
-      displaySku: `PROD-${last6(productId)}`,
-      variantId: null,
-    };
-  }
-
+  if (productId) return { key: `product:${productId}:${normTitle}`, displaySku: `PROD-${last6(productId)}`, variantId: null };
   const lineItemId = line.id;
-  if (lineItemId) {
-    return { key: `line:${lineItemId}`, displaySku: `LINE-${last6(lineItemId)}`, variantId: null };
-  }
-
-  return {
-    key: `fallback:${orderId}:${normTitle}:${index}`,
-    displaySku: `UNK-${index + 1}`,
-    variantId: null,
-  };
+  if (lineItemId) return { key: `line:${lineItemId}`, displaySku: `LINE-${last6(lineItemId)}`, variantId: null };
+  return { key: `fallback:${orderId}:${normTitle}:${index}`, displaySku: `UNK-${index + 1}`, variantId: null };
 }
 
 function isPcdBlockedError(message) {
   if (typeof message !== "string") return false;
   const lower = message.toLowerCase();
-  return (
-    lower.includes("not approved to access the order object") ||
-    lower.includes("protected customer data")
-  );
+  return lower.includes("not approved to access the order object") || lower.includes("protected customer data");
 }
 
 function aggregateOrdersToRows(ordersEdges) {
@@ -130,7 +102,6 @@ function aggregateOrdersToRows(ordersEdges) {
   let lineItemsParsed = 0;
   let firstOrderId = null;
   let firstLineItem = null;
-
   for (const { node: order } of ordersEdges) {
     if (!firstOrderId) firstOrderId = order.id;
     const lineEdges = order.lineItems?.edges ?? [];
@@ -143,29 +114,17 @@ function aggregateOrdersToRows(ordersEdges) {
       const qty = Math.max(0, Number(line.quantity) || 0);
       const amountStr = line.originalTotalSet?.shopMoney?.amount ?? "0";
       const revenue = Number(amountStr) || 0;
-
-      if (!firstLineItem) {
-        firstLineItem = { sku: displaySku, title, qty, revenue };
-      }
-
+      if (!firstLineItem) firstLineItem = { sku: displaySku, title, qty, revenue };
       const existing = agg.get(key);
       if (existing) {
         existing.quantity += qty;
         existing.revenue += revenue;
         existing.orderIds.add(order.id);
       } else {
-        agg.set(key, {
-          sku: displaySku,
-          title,
-          quantity: qty,
-          revenue,
-          orderIds: new Set([order.id]),
-          variantId: variantId ?? null,
-        });
+        agg.set(key, { sku: displaySku, title, quantity: qty, revenue, orderIds: new Set([order.id]), variantId: variantId ?? null });
       }
     }
   }
-
   const rows = Array.from(agg.values()).map((r) => ({
     sku: r.sku,
     title: r.title,
@@ -174,14 +133,7 @@ function aggregateOrdersToRows(ordersEdges) {
     revenue: Math.round(r.revenue * 100) / 100,
     variantId: r.variantId ?? undefined,
   }));
-
-  return {
-    rows,
-    lineItemsParsed,
-    firstOrderId,
-    firstLineItem,
-    ordersCount: ordersEdges.length,
-  };
+  return { rows, lineItemsParsed, firstOrderId, firstLineItem, ordersCount: ordersEdges.length };
 }
 
 const ADMIN_API_VERSION = "2025-01";
@@ -190,14 +142,8 @@ async function fetchOrdersWithCustomToken(shopDomain, accessToken, query) {
   const url = `https://${shopDomain.replace(/^https?:\/\//, "").split("/")[0]}/admin/api/${ADMIN_API_VERSION}/graphql.json`;
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": accessToken,
-    },
-    body: JSON.stringify({
-      query: ORDERS_QUERY,
-      variables: { query },
-    }),
+    headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": accessToken },
+    body: JSON.stringify({ query: ORDERS_QUERY, variables: { query } }),
   });
   const status = res.status;
   let data = null;
@@ -207,10 +153,7 @@ async function fetchOrdersWithCustomToken(shopDomain, accessToken, query) {
     const json = await res.json();
     data = json.data ?? null;
     errors = json.errors ?? null;
-    if (errors?.length) {
-      const first = errors[0];
-      graphqlError = typeof first?.message === "string" ? first.message : "Unknown GraphQL error";
-    }
+    if (errors?.length) graphqlError = typeof errors[0]?.message === "string" ? errors[0].message : "Unknown GraphQL error";
   } catch {
     graphqlError = "Failed to parse response JSON";
   }
@@ -230,79 +173,18 @@ function makeDebug(opts) {
   };
 }
 
-async function getSavedCogsBySku(shop) {
-  if (!shop || typeof shop !== "string") return {};
-  try {
-    const rows = await prisma.skuCost.findMany({
-      where: { shop: shop.trim() },
-    });
-    return Object.fromEntries(
-      rows.map((r) => [r.sku, Number(r.cogsUnit)]).filter(([, n]) => Number.isFinite(n)),
-    );
-  } catch {
-    return {};
-  }
-}
-
-/** Load saved COGS by variantId from Cogs table and merge into rows; returns merged rows + savedCogsBySku for UI initial state. */
-async function mergeSavedCogsIntoRows(shopId, rows) {
-  if (!shopId || !Array.isArray(rows)) return { rowsWithCogs: rows ?? [], savedCogsBySku: {} };
-  const variantIds = rows.map((r) => r.variantId).filter(Boolean);
-  const cogsMap = await getCogsMap(shopId, variantIds);
-  const rowsWithCogs = rows.map((r) => ({
-    ...r,
-    cogsPerUnit: r.variantId ? (cogsMap.get(r.variantId) ?? 0) : 0,
-  }));
-  const savedCogsBySku = Object.fromEntries(
-    rowsWithCogs.map((r) => [r.sku, r.cogsPerUnit]),
-  );
-  return { rowsWithCogs, savedCogsBySku };
-}
-
-async function getLastSkuCostRows(shop) {
-  if (!shop || typeof shop !== "string") return [];
-  try {
-    const rows = await prisma.skuCost.findMany({
-      where: { shop: shop.trim() },
-      orderBy: { updatedAt: "desc" },
-      take: 5,
-      select: { sku: true, cogsUnit: true, updatedAt: true },
-    });
-    return rows.map((r) => ({
-      sku: r.sku,
-      cogsUnit: Number(r.cogsUnit),
-      updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-async function getDebugDb(shop) {
-  const dbUrl = process.env.DATABASE_URL || "(sqlite default)";
-  let skuCostRowCount = null;
-  let lastSkuCostRows = [];
-  if (shop && typeof shop === "string") {
-    try {
-      skuCostRowCount = await prisma.skuCost.count({ where: { shop: shop.trim() } });
-      lastSkuCostRows = await getLastSkuCostRows(shop);
-    } catch {
-      skuCostRowCount = null;
-      lastSkuCostRows = [];
-    }
-  }
-  return { dbUrl, skuCostRowCount, lastSkuCostRows };
-}
-
 export const action = async ({ request }) => {
   if (request.method !== "POST") return { ok: false, error: "Method not allowed" };
+  const [{ default: prisma }, { authenticate }] = await Promise.all([
+    import("../db.server"),
+    import("../shopify.server"),
+  ]);
   try {
     const { session } = await authenticate.admin(request);
     const shop = session?.shop?.trim();
     if (!shop) return { ok: false, error: "Missing shop" };
     const formData = await request.formData();
-    const intent = formData.get("intent");
-    if (intent !== "save_cogs") return { ok: false, error: "Invalid intent" };
+    if (formData.get("intent") !== "save_cogs") return { ok: false, error: "Invalid intent" };
     const sku = formData.get("sku");
     if (typeof sku !== "string" || !sku.trim()) return { ok: false, error: "sku is required" };
     const skuTrim = sku.trim();
@@ -310,17 +192,11 @@ export const action = async ({ request }) => {
     const titleVal = typeof title === "string" ? title.trim() || null : null;
     const cogsUnitRaw = formData.get("cogsUnit");
     const cogsUnitNum = cogsUnitRaw !== null && cogsUnitRaw !== "" ? Number(cogsUnitRaw) : 0;
-    if (!Number.isFinite(cogsUnitNum) || cogsUnitNum < 0)
-      return { ok: false, error: "cogsUnit must be a non-negative number" };
+    if (!Number.isFinite(cogsUnitNum) || cogsUnitNum < 0) return { ok: false, error: "cogsUnit must be a non-negative number" };
     await prisma.skuCost.upsert({
       where: { shop_sku: { shop, sku: skuTrim } },
       update: { cogsUnit: cogsUnitNum, title: titleVal },
-      create: {
-        shop,
-        sku: skuTrim,
-        title: titleVal,
-        cogsUnit: cogsUnitNum,
-      },
+      create: { shop, sku: skuTrim, title: titleVal, cogsUnit: cogsUnitNum },
     });
     return { ok: true, sku: skuTrim, cogsUnit: cogsUnitNum, savedAt: new Date().toISOString() };
   } catch (e) {
@@ -329,28 +205,60 @@ export const action = async ({ request }) => {
 };
 
 export const loader = async ({ request }) => {
+  const [{ default: prisma }, { getCogsMap, getShopSettings }, { authenticate }] = await Promise.all([
+    import("../db.server"),
+    import("../services/shop-data.server"),
+    import("../shopify.server"),
+  ]);
+  async function getLastSkuCostRows(shop) {
+    if (!shop || typeof shop !== "string") return [];
+    try {
+      const rows = await prisma.skuCost.findMany({
+        where: { shop: shop.trim() },
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+        select: { sku: true, cogsUnit: true, updatedAt: true },
+      });
+      return rows.map((r) => ({ sku: r.sku, cogsUnit: Number(r.cogsUnit), updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt) }));
+    } catch {
+      return [];
+    }
+  }
+  async function getDebugDb(shop) {
+    const dbUrl = process.env.DATABASE_URL || "(sqlite default)";
+    let skuCostRowCount = null;
+    let lastSkuCostRows = [];
+    if (shop && typeof shop === "string") {
+      try {
+        skuCostRowCount = await prisma.skuCost.count({ where: { shop: shop.trim() } });
+        lastSkuCostRows = await getLastSkuCostRows(shop);
+      } catch {
+        skuCostRowCount = null;
+        lastSkuCostRows = [];
+      }
+    }
+    return { dbUrl, skuCostRowCount, lastSkuCostRows };
+  }
+  async function mergeSavedCogsIntoRows(shopId, rows) {
+    if (!shopId || !Array.isArray(rows)) return { rowsWithCogs: rows ?? [], savedCogsBySku: {} };
+    const variantIds = rows.map((r) => r.variantId).filter(Boolean);
+    const cogsMap = await getCogsMap(shopId, variantIds);
+    const rowsWithCogs = rows.map((r) => ({ ...r, cogsPerUnit: r.variantId ? (cogsMap.get(r.variantId) ?? 0) : 0 }));
+    const savedCogsBySku = Object.fromEntries(rowsWithCogs.map((r) => [r.sku, r.cogsPerUnit]));
+    return { rowsWithCogs, savedCogsBySku };
+  }
   const query = `created_at:>=${formatDateDaysAgo(30)}`;
-  const hasShopDomain = Boolean(
-    process.env.SHOPIFY_SHOP_DOMAIN && String(process.env.SHOPIFY_SHOP_DOMAIN).trim(),
-  );
-  const hasAdminToken = Boolean(
-    process.env.SHOPIFY_ADMIN_ACCESS_TOKEN && String(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN).trim(),
-  );
-
+  const hasShopDomain = Boolean(process.env.SHOPIFY_SHOP_DOMAIN && String(process.env.SHOPIFY_SHOP_DOMAIN).trim());
+  const hasAdminToken = Boolean(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN && String(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN).trim());
   const missingEnvHint = `Missing env: SHOPIFY_SHOP_DOMAIN=${hasShopDomain ? "present" : "missing"}, SHOPIFY_ADMIN_ACCESS_TOKEN=${hasAdminToken ? "present" : "missing"}. Add them to .env (see docs/DEV_CUSTOM_APP_TOKEN.md) and restart dev.`;
-  const tokenFailedHint =
-    "Token fallback failed. Check token, scopes, and shop domain (see docs/DEV_CUSTOM_APP_TOKEN.md).";
-  const pcdDocLine =
-    "See docs/SHOPIFY_ORDERS_ACCESS.md for the single correct path (Production approval vs Dev token).";
-
+  const tokenFailedHint = "Token fallback failed. Check token, scopes, and shop domain (see docs/DEV_CUSTOM_APP_TOKEN.md).";
+  const pcdDocLine = "See docs/SHOPIFY_ORDERS_ACCESS.md for the single correct path (Production approval vs Dev token).";
   let sessionShop = null;
-
   try {
     const { admin, session } = await authenticate.admin(request);
     sessionShop = session?.shop ?? null;
     const response = await admin.graphql(ORDERS_QUERY, { variables: { query } });
     const json = await response.json();
-
     if (json.errors?.length) {
       const message = json.errors.map((e) => e.message).join(", ");
       if (isPcdBlockedError(message)) {
@@ -363,119 +271,27 @@ export const loader = async ({ request }) => {
           const tokenGraphqlError = result.graphqlError;
           if (result.errors?.length) {
             const debugDb = await getDebugDb(shopDomain);
-            return {
-              ok: false,
-              shop: shopDomain,
-              error: {
-                message: result.errors.map((e) => e.message).join(", "),
-                hint: `${tokenFailedHint} ${pcdDocLine}`,
-              },
-              counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
-              preview: {},
-              rows: [],
-              savedCogsBySku: {},
-              shopFeeSettings: DEFAULT_FEE_SETTINGS,
-              debug: { ...makeDebug({
-                authMode: "blocked",
-                hasShopDomain,
-                hasAdminToken,
-                tokenAttempted,
-                tokenHttpStatus,
-                tokenGraphqlError,
-              }), db: debugDb },
-            };
+            return { ok: false, shop: shopDomain, error: { message: result.errors.map((e) => e.message).join(", "), hint: `${tokenFailedHint} ${pcdDocLine}` }, counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 }, preview: {}, rows: [], savedCogsBySku: {}, shopFeeSettings: DEFAULT_FEE_SETTINGS, debug: { ...makeDebug({ authMode: "blocked", hasShopDomain, hasAdminToken, tokenAttempted, tokenHttpStatus, tokenGraphqlError }), db: debugDb } };
           }
           const ordersEdges = result.data?.orders?.edges ?? [];
           const agg = aggregateOrdersToRows(ordersEdges);
           const { rowsWithCogs, savedCogsBySku } = await mergeSavedCogsIntoRows(shopDomain, agg.rows);
           const debugDb = await getDebugDb(shopDomain);
           const shopFeeSettings = (await getShopSettings(shopDomain)) ?? DEFAULT_FEE_SETTINGS;
-          return {
-            ok: true,
-            shop: shopDomain,
-            authMode: "token-fallback",
-            counts: {
-              ordersFetched: agg.ordersCount,
-              lineItemsParsed: agg.lineItemsParsed,
-              skuRows: agg.rows.length,
-            },
-            preview: {
-              firstOrderId: agg.firstOrderId,
-              firstLineItem: agg.firstLineItem,
-            },
-            rows: rowsWithCogs,
-            savedCogsBySku,
-            shopFeeSettings,
-            debug: { ...makeDebug({
-              authMode: "token-fallback",
-              hasShopDomain,
-              hasAdminToken,
-              tokenAttempted,
-              tokenHttpStatus,
-              tokenGraphqlError: null,
-            }), db: debugDb },
-          };
+          return { ok: true, shop: shopDomain, authMode: "token-fallback", counts: { ordersFetched: agg.ordersCount, lineItemsParsed: agg.lineItemsParsed, skuRows: agg.rows.length }, preview: { firstOrderId: agg.firstOrderId, firstLineItem: agg.firstLineItem }, rows: rowsWithCogs, savedCogsBySku, shopFeeSettings, debug: { ...makeDebug({ authMode: "token-fallback", hasShopDomain, hasAdminToken, tokenAttempted, tokenHttpStatus, tokenGraphqlError: null }), db: debugDb } };
         }
         const debugDb = await getDebugDb(sessionShop);
-        return {
-          ok: false,
-          shop: sessionShop,
-          error: { message, hint: `${missingEnvHint} ${pcdDocLine}` },
-          counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
-          preview: {},
-          rows: [],
-          savedCogsBySku: {},
-          shopFeeSettings: DEFAULT_FEE_SETTINGS,
-          debug: { ...makeDebug({
-            authMode: "blocked",
-            hasShopDomain,
-            hasAdminToken,
-            tokenAttempted: false,
-            tokenHttpStatus: null,
-            tokenGraphqlError: null,
-          }), db: debugDb },
-        };
+        return { ok: false, shop: sessionShop, error: { message, hint: `${missingEnvHint} ${pcdDocLine}` }, counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 }, preview: {}, rows: [], savedCogsBySku: {}, shopFeeSettings: DEFAULT_FEE_SETTINGS, debug: { ...makeDebug({ authMode: "blocked", hasShopDomain, hasAdminToken, tokenAttempted: false, tokenHttpStatus: null, tokenGraphqlError: null }), db: debugDb } };
       }
       const debugDb = await getDebugDb(sessionShop);
-      return {
-        ok: false,
-        shop: sessionShop,
-        error: {
-          message,
-          hint: "Check Admin API permissions and query.",
-        },
-        counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
-        preview: {},
-        rows: [],
-        savedCogsBySku: {},
-        shopFeeSettings: DEFAULT_FEE_SETTINGS,
-        debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDb },
-      };
+      return { ok: false, shop: sessionShop, error: { message, hint: "Check Admin API permissions and query." }, counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 }, preview: {}, rows: [], savedCogsBySku: {}, shopFeeSettings: DEFAULT_FEE_SETTINGS, debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDb } };
     }
-
     const ordersEdges = json.data?.orders?.edges ?? [];
     const agg = aggregateOrdersToRows(ordersEdges);
     const { rowsWithCogs, savedCogsBySku } = await mergeSavedCogsIntoRows(sessionShop, agg.rows);
     const debugDb = await getDebugDb(sessionShop);
     const shopFeeSettings = (await getShopSettings(sessionShop)) ?? DEFAULT_FEE_SETTINGS;
-    return {
-      ok: true,
-      shop: sessionShop,
-      authMode: "session",
-      counts: {
-        ordersFetched: agg.ordersCount,
-        lineItemsParsed: agg.lineItemsParsed,
-        skuRows: agg.rows.length,
-      },
-      preview: {
-        firstOrderId: agg.firstOrderId,
-        firstLineItem: agg.firstLineItem,
-      },
-      rows: rowsWithCogs,
-      savedCogsBySku,
-      shopFeeSettings,
-      debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDb },
-    };
+    return { ok: true, shop: sessionShop, authMode: "session", counts: { ordersFetched: agg.ordersCount, lineItemsParsed: agg.lineItemsParsed, skuRows: agg.rows.length }, preview: { firstOrderId: agg.firstOrderId, firstLineItem: agg.firstLineItem }, rows: rowsWithCogs, savedCogsBySku, shopFeeSettings, debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDb } };
   } catch (e) {
     const message = e?.message ?? "Unknown error";
     if (isPcdBlockedError(message)) {
@@ -495,90 +311,20 @@ export const loader = async ({ request }) => {
             const agg = aggregateOrdersToRows(ordersEdges);
             const { rowsWithCogs, savedCogsBySku } = await mergeSavedCogsIntoRows(shopDomain, agg.rows);
             const debugDb = await getDebugDb(shopDomain);
-            return {
-              ok: true,
-              shop: shopDomain,
-              authMode: "token-fallback",
-              counts: {
-                ordersFetched: agg.ordersCount,
-                lineItemsParsed: agg.lineItemsParsed,
-                skuRows: agg.rows.length,
-              },
-              preview: {
-                firstOrderId: agg.firstOrderId,
-                firstLineItem: agg.firstLineItem,
-              },
-              rows: rowsWithCogs,
-              savedCogsBySku,
-              debug: { ...makeDebug({
-                authMode: "token-fallback",
-                hasShopDomain,
-                hasAdminToken,
-                tokenAttempted,
-                tokenHttpStatus,
-                tokenGraphqlError: null,
-              }), db: debugDb },
-            };
+            const shopFeeSettings = (await getShopSettings(shopDomain)) ?? DEFAULT_FEE_SETTINGS;
+            return { ok: true, shop: shopDomain, authMode: "token-fallback", counts: { ordersFetched: agg.ordersCount, lineItemsParsed: agg.lineItemsParsed, skuRows: agg.rows.length }, preview: { firstOrderId: agg.firstOrderId, firstLineItem: agg.firstLineItem }, rows: rowsWithCogs, savedCogsBySku, shopFeeSettings, debug: { ...makeDebug({ authMode: "token-fallback", hasShopDomain, hasAdminToken, tokenAttempted, tokenHttpStatus, tokenGraphqlError: null }), db: debugDb } };
           }
         } catch {
           tokenAttempted = true;
-          // tokenHttpStatus / tokenGraphqlError may be unset if fetch threw before response
         }
         const debugDbCatch1 = await getDebugDb(sessionShop ?? null);
-        return {
-          ok: false,
-          shop: sessionShop ?? null,
-          error: { message, hint: `${tokenFailedHint} ${pcdDocLine}` },
-          counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
-          preview: {},
-          rows: [],
-          savedCogsBySku: {},
-          shopFeeSettings: DEFAULT_FEE_SETTINGS,
-          debug: { ...makeDebug({
-            authMode: "blocked",
-            hasShopDomain,
-            hasAdminToken,
-            tokenAttempted,
-            tokenHttpStatus,
-            tokenGraphqlError,
-          }), db: debugDbCatch1 },
-        };
+        return { ok: false, shop: sessionShop ?? null, error: { message, hint: `${tokenFailedHint} ${pcdDocLine}` }, counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 }, preview: {}, rows: [], savedCogsBySku: {}, shopFeeSettings: DEFAULT_FEE_SETTINGS, debug: { ...makeDebug({ authMode: "blocked", hasShopDomain, hasAdminToken, tokenAttempted, tokenHttpStatus, tokenGraphqlError }), db: debugDbCatch1 } };
       }
       const debugDbCatch2 = await getDebugDb(sessionShop ?? null);
-      return {
-        ok: false,
-        shop: sessionShop ?? null,
-        error: { message, hint: `${missingEnvHint} ${pcdDocLine}` },
-        counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
-        preview: {},
-        rows: [],
-        savedCogsBySku: {},
-        shopFeeSettings: DEFAULT_FEE_SETTINGS,
-        debug: { ...makeDebug({
-          authMode: "blocked",
-          hasShopDomain,
-          hasAdminToken,
-          tokenAttempted: false,
-          tokenHttpStatus: null,
-          tokenGraphqlError: null,
-        }), db: debugDbCatch2 },
-        };
+      return { ok: false, shop: sessionShop ?? null, error: { message, hint: `${missingEnvHint} ${pcdDocLine}` }, counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 }, preview: {}, rows: [], savedCogsBySku: {}, shopFeeSettings: DEFAULT_FEE_SETTINGS, debug: { ...makeDebug({ authMode: "blocked", hasShopDomain, hasAdminToken, tokenAttempted: false, tokenHttpStatus: null, tokenGraphqlError: null }), db: debugDbCatch2 } };
     }
     const debugDbCatch3 = await getDebugDb(sessionShop ?? null);
-    return {
-      ok: false,
-      shop: sessionShop ?? null,
-      error: {
-        message,
-        hint: "Admin API may be unavailable or session invalid.",
-      },
-      counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 },
-      preview: {},
-      rows: [],
-      savedCogsBySku: {},
-      shopFeeSettings: DEFAULT_FEE_SETTINGS,
-      debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDbCatch3 },
-    };
+    return { ok: false, shop: sessionShop ?? null, error: { message, hint: "Admin API may be unavailable or session invalid." }, counts: { ordersFetched: 0, lineItemsParsed: 0, skuRows: 0 }, preview: {}, rows: [], savedCogsBySku: {}, shopFeeSettings: DEFAULT_FEE_SETTINGS, debug: { ...makeDebug({ authMode: "session", hasShopDomain, hasAdminToken }), db: debugDbCatch3 } };
   }
 };
 

@@ -4,7 +4,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "prebuild": "prisma generate",
-    "build": "prisma generate && react-router build",
+    "build": "react-router build",
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "dev": "npm run db:migrate && shopify app dev --use-localhost",
