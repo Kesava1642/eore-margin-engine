@@ -15,6 +15,50 @@ import {
 } from "@shopify/polaris";
 import { computeRowMargin } from "../lib/margin";
 
+// Defensive wrappers: fall back to basic HTML if Polaris components are unavailable
+const PolarisBadge = Badge || (({ children }) => <span>{children}</span>);
+const PolarisCard = Card || (({ children, ...rest }) => <div {...rest}>{children}</div>);
+const PolarisPage = Page || (({ children, title }) => (
+  <div>
+    {title ? <h1>{title}</h1> : null}
+    {children}
+  </div>
+));
+const PolarisIndexTable =
+  IndexTable ||
+  (({ children }) => (
+    <div>
+      {children}
+    </div>
+  ));
+const PolarisTextField =
+  TextField ||
+  (({ value, onChange, type = "text", disabled }) => (
+    <input
+      type={type}
+      value={value}
+      onChange={(e) => onChange?.(e.target.value)}
+      disabled={disabled}
+    />
+  ));
+const PolarisSkeletonPage =
+  SkeletonPage ||
+  (({ children }) => (
+    <div>
+      {children}
+    </div>
+  ));
+const PolarisSkeletonBodyText = SkeletonBodyText || (() => null);
+const PolarisSkeletonDisplayText = SkeletonDisplayText || (() => null);
+const PolarisToast = Toast || (() => null);
+const PolarisBanner =
+  Banner ||
+  (({ children }) => (
+    <div>
+      {children}
+    </div>
+  ));
+
 const DEFAULT_CURRENCY = "USD";
 const WARN_MARGIN_PCT = 10;
 
@@ -719,25 +763,25 @@ export default function Index() {
       )}
 
       <s-section heading="Margin table">
-        <Page title="Margin engine" backAction={{ content: "Home", url: "/app" }}>
+        <PolarisPage title="Margin engine" backAction={{ content: "Home", url: "/app" }}>
           {navigation.state === "loading" && (
-            <SkeletonPage>
-              <Card>
+            <PolarisSkeletonPage>
+              <PolarisCard>
                 <Card.Section>
-                  <SkeletonBodyText lines={3} />
-                  <SkeletonDisplayText size="small" />
+                  <PolarisSkeletonBodyText lines={3} />
+                  <PolarisSkeletonDisplayText size="small" />
                 </Card.Section>
-              </Card>
-            </SkeletonPage>
+              </PolarisCard>
+            </PolarisSkeletonPage>
           )}
 
           {navigation.state !== "loading" && (
             <>
-              <Card>
+              <PolarisCard>
                 <div style={{ padding: "16px", display: "flex", alignItems: "center", gap: 16 }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span>Fee %</span>
-                    <TextField
+                    <PolarisTextField
                       type="number"
                       min={0}
                       max={100}
@@ -750,10 +794,10 @@ export default function Index() {
                     />
                   </label>
                 </div>
-              </Card>
+              </PolarisCard>
 
               {hasRows && (
-                <Card>
+                <PolarisCard>
                   <Card.Section title="Insights">
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 12 }}>
                       <div>
@@ -810,37 +854,37 @@ export default function Index() {
                       </div>
                     </div>
                   </Card.Section>
-                </Card>
+                </PolarisCard>
               )}
 
               {!ok && (
                 <div style={{ marginTop: 16 }}>
-                  <Banner tone="critical" title="Error" onDismiss={() => {}}>
+                  <PolarisBanner tone="critical" title="Error" onDismiss={() => {}}>
                     {error?.message ?? "Failed to load data."}
                     {error?.hint ? ` ${error.hint}` : ""}
-                  </Banner>
+                  </PolarisBanner>
                 </div>
               )}
 
               {ok && emptyStateWebhook && (
-                <Card>
+                <PolarisCard>
                   <Card.Section>
                     <p>No synced order data yet. Create an order or update a product to start syncing.</p>
                   </Card.Section>
-                </Card>
+                </PolarisCard>
               )}
 
               {ok && zeroOrders && !emptyStateWebhook && (
-                <Card>
+                <PolarisCard>
                   <Card.Section>
                     <p>No orders found in this store (last 30 days).</p>
                   </Card.Section>
-                </Card>
+                </PolarisCard>
               )}
 
               {hasRows && (
-                <Card padding="0">
-                  <IndexTable
+                <PolarisCard padding="0">
+                  <PolarisIndexTable
                     resourceName={{ singular: "SKU", plural: "SKUs" }}
                     itemCount={sortedRows.length}
                     headings={[
@@ -889,7 +933,7 @@ export default function Index() {
                         <IndexTable.Cell>{row.revenueFormatted}</IndexTable.Cell>
                         <IndexTable.Cell>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                            <TextField
+                            <PolarisTextField
                               type="number"
                               min={0}
                               step={0.01}
@@ -909,7 +953,7 @@ export default function Index() {
                             >
                               {row.isSaving ? "Saving…" : "Save"}
                             </button>
-                            {row.savedAt && <Badge tone="success">Saved</Badge>}
+                            {row.savedAt && <PolarisBadge tone="success">Saved</PolarisBadge>}
                             {row.rowError && (
                               <span style={{ color: "var(--p-color-text-critical)", fontSize: 12 }}>{row.rowError}</span>
                             )}
@@ -918,37 +962,37 @@ export default function Index() {
                         <IndexTable.Cell>{row.feesFormatted}</IndexTable.Cell>
                         <IndexTable.Cell>
                           <span style={{ marginRight: 8 }}>{row.netProfitFormatted}</span>
-                          {row._netProfit < 0 && <Badge tone="critical">Loss</Badge>}
+                          {row._netProfit < 0 && <PolarisBadge tone="critical">Loss</PolarisBadge>}
                         </IndexTable.Cell>
                         <IndexTable.Cell>
                           <span style={{ marginRight: 8 }}>{row.marginPercentFormatted}</span>
                           {row._marginPct >= 0 && row._marginPct < WARN_MARGIN_PCT && (
-                            <Badge tone="warning">Low margin</Badge>
+                            <PolarisBadge tone="warning">Low margin</PolarisBadge>
                           )}
                         </IndexTable.Cell>
                         <IndexTable.Cell>
                           <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                            {row.isLossMaking && <Badge tone="critical">LOSS</Badge>}
-                            {row.isLowMargin && <Badge tone="warning">LOW MARGIN</Badge>}
-                            {row.isHighFees && <Badge tone="attention">HIGH FEES</Badge>}
+                            {row.isLossMaking && <PolarisBadge tone="critical">LOSS</PolarisBadge>}
+                            {row.isLowMargin && <PolarisBadge tone="warning">LOW MARGIN</PolarisBadge>}
+                            {row.isHighFees && <PolarisBadge tone="attention">HIGH FEES</PolarisBadge>}
                           </div>
                         </IndexTable.Cell>
                       </IndexTable.Row>
                     ))}
-                  </IndexTable>
-                </Card>
+                  </PolarisIndexTable>
+                </PolarisCard>
               )}
             </>
           )}
 
           {toastError && (
-            <Toast
+            <PolarisToast
               content={toastError}
               onDismiss={() => setToastError(null)}
               error
             />
           )}
-        </Page>
+        </PolarisPage>
       </s-section>
     </s-page>
   );
